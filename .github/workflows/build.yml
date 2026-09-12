@@ -140,7 +140,25 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release-files
-          find release -type f -name '*.apk' -exec cp {} release-files/ \;
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' V2rayNG/app/build.gradle.kts)
+
+          for apk in $(find release -type f -name '*.apk'); do
+            filename=$(basename "$apk")
+
+            if [[ "$filename" == *arm64-v8a* ]]; then
+              abi="arm64-v8a"
+            elif [[ "$filename" == *armeabi-v7a* ]]; then
+              abi="armeabi-v7a"
+            elif [[ "$filename" == *x86* ]]; then
+              abi="x86"
+            elif [[ "$filename" == *universal* ]]; then
+              abi="universal"
+            else
+              continue
+            fi
+
+            cp "$apk" "release-files/Mah2ray_${VERSION}_${abi}.apk"
+          done
 
       - name: Create draft release
         env:
