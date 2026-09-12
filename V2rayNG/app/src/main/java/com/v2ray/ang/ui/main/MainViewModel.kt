@@ -13,6 +13,7 @@ import com.v2ray.ang.dto.TestServiceMessage
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.ServersCache
 import com.v2ray.ang.dto.entities.SubscriptionCache
+import com.v2ray.ang.extension.delay
 import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.matchesPattern
 import com.v2ray.ang.extension.moveItem
@@ -24,11 +25,13 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
-import com.v2ray.ang.extension.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -65,7 +68,8 @@ class MainViewModel(
     // ---------- Groups & cache ----------
     private val cacheMutex = Mutex()
     private val groupDataCache = mutableMapOf<String, List<ServersCache>>()
-    private val groupPageFlows = ConcurrentHashMap<String, MutableStateFlow<List<ServersCache>>>()
+    private val groupUiFlows = ConcurrentHashMap<String, MutableStateFlow<ServerGroupUiState>>()
+    private val groupServerFlows = ConcurrentHashMap<String, StateFlow<List<ServersCache>>>()
     private val groupLoadMutexes = ConcurrentHashMap<String, Mutex>()
     private val serverOrderPersistenceJobs = mutableMapOf<String, Job>()
 
@@ -74,8 +78,8 @@ class MainViewModel(
     private var selectedGroupLoadJob: Job? = null
     private var reloadJob: Job? = null
 
-    @Volatile
-    private var testingGroupId: String? = null
+    private val testRequests = MainTestRequests()
+    private var bulkTestJob: Job? = null
 
     private val initialPageReady = CompletableDeferred<Unit>()
 
@@ -109,23 +113,35 @@ class MainViewModel(
 
             MainServiceEvent.StateStopSuccess -> updateRunningState(false)
             is MainServiceEvent.MeasureDelayResult -> {
-                _uiState.update { it.copy(status = MainStatus.ConnectionTest(event.result)) }
+                if (!uiState.value.isRunning || !testRequests.completeCurrent(event.requestId)) return
+                _uiState.update { it.copy(isTesting = testRequests.isTesting, status = MainStatus.ConnectionTest(event.result)) }
             }
 
-            MainServiceEvent.MeasureConfigSuccess -> {
+            is MainServiceEvent.MeasureConfigSuccess -> {
+                val request = testRequests.bulk?.takeIf { it.id == event.requestId } ?: return
                 viewModelScope.launch(ioDispatcher) {
-                    val gid = testingGroupId ?: uiState.value.selectedGroupId
+                    val gid = request.groupId
                     cacheMutex.withLock { groupDataCache.remove(gid) }
                     updateGroupUi(gid, loadGroup(gid, forceRefresh = true))
                 }
             }
 
             is MainServiceEvent.MeasureConfigNotify -> {
-                _uiState.update { it.copy(status = MainStatus.TestProgress(event.progress)) }
+                if (event.requestId == testRequests.bulk?.id) {
+                    _uiState.update { it.copy(status = MainStatus.TestProgress(event.progress)) }
+                }
             }
 
             is MainServiceEvent.MeasureConfigFinish -> {
-                onTestsFinished()
+                onTestsFinished(event.requestId)
+            }
+
+            is MainServiceEvent.MeasureDelayCancelled -> {
+                if (testRequests.completeCurrent(event.requestId)) resetTestStatus()
+            }
+
+            is MainServiceEvent.MeasureConfigCancelled -> {
+                if (testRequests.completeBulk(event.requestId) != null) resetTestStatus()
             }
         }
     }
@@ -163,14 +179,25 @@ class MainViewModel(
 
     // ---------- Public state accessors ----------
     fun serversForGroup(groupId: String): StateFlow<List<ServersCache>> =
-        groupPageFlows.computeIfAbsent(groupId) { MutableStateFlow(emptyList()) }
-            .asStateFlow()
+        groupServerFlows.computeIfAbsent(groupId) {
+            val groupState = mutableServerGroupState(groupId)
+            groupState
+                .map { it.servers }
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+                    initialValue = groupState.value.servers,
+                )
+        }
 
-    private fun mutableServersForGroup(groupId: String): MutableStateFlow<List<ServersCache>> =
-        groupPageFlows.computeIfAbsent(groupId) { MutableStateFlow(emptyList()) }
+    internal fun serverGroupState(groupId: String): StateFlow<ServerGroupUiState> =
+        mutableServerGroupState(groupId).asStateFlow()
+
+    private fun mutableServerGroupState(groupId: String): MutableStateFlow<ServerGroupUiState> =
+        groupUiFlows.computeIfAbsent(groupId) { MutableStateFlow(ServerGroupUiState()) }
 
     private fun currentServers(): List<ServersCache> =
-        mutableServersForGroup(uiState.value.selectedGroupId).value
+        mutableServerGroupState(uiState.value.selectedGroupId).value.servers
 
     // ---------- Action handler ----------
     fun onAction(action: MainAction) {
@@ -289,7 +316,31 @@ class MainViewModel(
     }
 
     private fun updateGroupUi(groupId: String, servers: List<ServersCache>) {
-        mutableServersForGroup(groupId).value = applyKeywordFilter(servers)
+        val filteredServers = applyKeywordFilter(servers)
+        mutableServerGroupState(groupId).value = ServerGroupUiState(
+            servers = filteredServers,
+            rows = buildServerRows(groupId, filteredServers)
+        )
+    }
+
+    private fun buildServerRows(groupId: String, servers: List<ServersCache>): List<ServerRowUiModel> {
+        val subscriptionRemarks = if (groupId.isEmpty()) {
+            servers.asSequence()
+                .map { it.profile.subscriptionId }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .associateWith { subscriptionId ->
+                    dataSource.getSubscriptionItem(subscriptionId)?.remarks.orEmpty()
+                }
+        } else {
+            emptyMap()
+        }
+        return servers.map { server ->
+            buildServerRowUiModel(
+                server = server,
+                subscriptionRemarks = subscriptionRemarks[server.profile.subscriptionId].orEmpty()
+            )
+        }
     }
 
     fun getSubscriptions(): List<SubscriptionCache> = dataSource.getSubscriptions()
@@ -334,17 +385,18 @@ class MainViewModel(
                 }
                 val selectedGroup = resolveSelectedGroup(groups)
                 val validIds = groups.mapTo(HashSet()) { it.id }
-                groupPageFlows.keys.removeAll { it !in validIds }
+                groupUiFlows.keys.removeAll { it !in validIds }
+                groupServerFlows.keys.removeAll { it !in validIds }
                 groupLoadMutexes.keys.removeAll { it !in validIds }
 
                 _uiState.update {
                     it.copy(
                         groups = groups,
                         selectedGroupId = selectedGroup,
-                        selectedGuid = dataSource.getSelectServer()
+                        selectedGuid = dataSource.getSelectServer(),
                     )
                 }
-                groups.forEach { mutableServersForGroup(it.id) }
+                groups.forEach { mutableServerGroupState(it.id) }
 
                 if (groups.isEmpty()) {
                     cacheMutex.withLock { groupDataCache.clear() }
@@ -424,7 +476,13 @@ class MainViewModel(
                             toast(R.string.title_update_subscription_no_subscription)
 
                         result.successCount > 0 && result.failureCount + result.skipCount == 0 ->
-                            toast(dataSource.getString(R.string.title_update_config_count, result.configCount))
+                            toast(
+                                getQuantityString(
+                                    R.plurals.title_update_config_count,
+                                    result.configCount,
+                                    result.configCount,
+                                )
+                            )
 
                         else ->
                             toast(dataSource.getString(R.string.title_update_subscription_result, result.configCount, result.successCount, result.failureCount, result.skipCount))
@@ -582,7 +640,7 @@ class MainViewModel(
 
     fun subscriptionIdChanged(id: String) {
         if (_uiState.value.groups.none { it.id == id }) return
-        mutableServersForGroup(id)
+        mutableServerGroupState(id)
         if (uiState.value.selectedGroupId != id) {
             dataSource.setSelectedSubscriptionId(id)
             _uiState.update { it.copy(selectedGroupId = id) }
@@ -660,10 +718,13 @@ class MainViewModel(
     }
 
     fun moveServer(groupId: String, fromPosition: Int, toPosition: Int) {
-        val servers = mutableServersForGroup(groupId).value.toMutableList()
+        val groupState = mutableServerGroupState(groupId).value
+        val servers = groupState.servers.toMutableList()
         if (!servers.moveItem(fromPosition, toPosition)) return
+        val rows = groupState.rows.toMutableList()
+        rows.moveItem(fromPosition, toPosition)
         val guids = servers.map { it.guid }
-        mutableServersForGroup(groupId).value = servers
+        mutableServerGroupState(groupId).value = ServerGroupUiState(servers, rows)
         // A drag emits several moves; serialize writes so an older order cannot overwrite a newer one.
         val previousPersistenceJob = serverOrderPersistenceJobs[groupId]
         serverOrderPersistenceJobs[groupId] = viewModelScope.launch(ioDispatcher) {
@@ -675,67 +736,80 @@ class MainViewModel(
 
     // ---------- Testing ----------
     fun cancelAllPing() {
+        bulkTestJob?.cancel()
+        bulkTestJob = null
+        testRequests.cancelBulk()
+        testRequests.invalidateCurrent()
+        resetTestStatus()
         dataSource.cancelAllPing()
-        testingGroupId = null
+    }
+
+    private fun resetTestStatus() {
         _uiState.update {
             it.copy(
-                isTesting = false,
-                status = if (it.isRunning) MainStatus.Connected else MainStatus.Disconnected
+                isTesting = testRequests.isTesting,
+                status = if (testRequests.isTesting) MainStatus.Testing
+                else if (it.isRunning) MainStatus.Connected else MainStatus.Disconnected
             )
         }
     }
 
     fun testAllRealPing(onlyTcp: Boolean = false) {
-        dataSource.cancelAllPing()
+        cancelAllPing()
         val groupId = uiState.value.selectedGroupId
         val servers = currentServers()
         if (servers.isEmpty()) {
-            _uiState.update { it.copy(isTesting = false) }
             return
         }
         val serverGuids = servers.map { it.guid }
-        mutableServersForGroup(groupId).update { current ->
-            current.map { server ->
-                if (server.testDelayMillis == 0L) server
-                else server.copy(testDelayMillis = 0L)
-            }
+        mutableServerGroupState(groupId).update { current ->
+            current.copy(
+                servers = current.servers.map { server ->
+                    if (server.testDelayMillis == 0L) server
+                    else server.copy(testDelayMillis = 0L)
+                },
+                rows = current.rows.map { row ->
+                    if (row.testDelayMillis == 0L) row
+                    else row.copy(testDelayMillis = 0L)
+                }
+            )
         }
-        testingGroupId = groupId
+        val request = testRequests.beginBulk(groupId)
+        val message = TestServiceMessage(
+            key = AppConfig.MSG_MEASURE_CONFIG_START,
+            subscriptionId = groupId,
+            serverGuids = if (keywordFilter.isNotEmpty()) serverGuids else emptyList(),
+            onlyTcp = onlyTcp
+        )
         _uiState.update {
             it.copy(
                 isTesting = true,
                 status = MainStatus.Testing
             )
         }
-        viewModelScope.launch(ioDispatcher) {
-            dataSource.clearAllTestDelayResults(serverGuids)
-            cacheMutex.withLock { groupDataCache.remove(groupId) }
-            dataSource.sendMsg2TestService(
-                TestServiceMessage(
-                    key = AppConfig.MSG_MEASURE_CONFIG_START,
-                    subscriptionId = groupId,
-                    serverGuids = if (keywordFilter.isNotEmpty()) serverGuids else emptyList(),
-                    onlyTcp = onlyTcp
-                )
-            )
+        bulkTestJob = viewModelScope.launch {
+            withContext(ioDispatcher) {
+                cacheMutex.withLock {
+                    dataSource.clearAllTestDelayResults(serverGuids)
+                    groupDataCache.remove(groupId)
+                }
+            }
+            dataSource.sendMsg2TestService(message, request.id)
         }
     }
 
     fun testCurrentServerRealPing() {
-        _uiState.update { it.copy(status = MainStatus.Testing) }
-        dataSource.testCurrentServerRealPing()
+        if (!uiState.value.isRunning) return
+        val requestId = testRequests.beginCurrent()
+        _uiState.update { it.copy(isTesting = true, status = MainStatus.Testing) }
+        dataSource.testCurrentServerRealPing(requestId)
     }
 
-    private fun onTestsFinished() {
+    private fun onTestsFinished(requestId: String) {
+        if (testRequests.completeBulk(requestId) == null) return
+        resetTestStatus()
         viewModelScope.launch(ioDispatcher) {
             cacheMutex.withLock { groupDataCache.clear() }
-            testingGroupId = null
-            _uiState.update {
-                it.copy(
-                    isTesting = false,
-                    status = if (it.isRunning) MainStatus.Connected else MainStatus.Disconnected
-                )
-            }
             reloadAllGroups(_uiState.value.groups.map { it.id })
         }
     }
@@ -763,10 +837,12 @@ class MainViewModel(
 
     // ---------- Running state ----------
     private fun updateRunningState(running: Boolean, clearTestingText: Boolean = true) {
+        if (!running || clearTestingText) testRequests.invalidateCurrent()
         _uiState.update { state ->
             state.copy(
                 isRunning = running,
-                status = if (!clearTestingText && state.isTesting) state.status
+                isTesting = testRequests.isTesting,
+                status = if (!clearTestingText && state.isRunning == running) state.status
                 else if (running) MainStatus.Connected else MainStatus.Disconnected
             )
         }
