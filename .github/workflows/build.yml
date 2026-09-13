@@ -140,7 +140,7 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release-files
-          VERSION=$(echo "${{ inputs.release_tag }}" | sed -E 's/^Mah2ray_([^_]+)_release[0-9]*$/\1/')
+          VERSION=$(echo "${{ inputs.release_tag }}" | sed -E 's/^Mah2ray_([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
 
           for apk in $(find release -type f -name '*.apk'); do
             filename=$(basename "$apk")
@@ -179,4 +179,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release edit "${{ inputs.release_tag }}" --repo "${GITHUB_REPOSITORY}" --draft=false
+          gh release edit "${{ inputs.release_tag }}" --repo "${GITHUB_REPOSITORY}" --draft=false --latest
