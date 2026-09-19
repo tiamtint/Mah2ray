@@ -23,15 +23,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.v2ray.ang.R
 import com.v2ray.ang.ui.compose.AppDivider
-import com.v2ray.ang.ui.compose.LocalDarkTheme
 import com.v2ray.ang.ui.compose.verticalScrollbar
 
 enum class MainDestination(@DrawableRes val iconRes: Int, @StringRes val labelRes: Int) {
@@ -89,16 +85,12 @@ fun MainDrawerContent(drawerState: DrawerState, onNavigate: (MainDestination) ->
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    val isDarkTheme = LocalDarkTheme.current
+                    // PattNG: full-color circular logo, no dark-mode tint (tinting a photo logo
+                    // would flatten it into a white disc)
                     Image(
-                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        painter = painterResource(R.drawable.ic_pattng_logo),
                         contentDescription = null,
-                        modifier = Modifier.size(120.dp),
-                        colorFilter = if (isDarkTheme) {
-                            ColorFilter.tint(Color.White, BlendMode.SrcIn)
-                        } else {
-                            null
-                        }
+                        modifier = Modifier.size(120.dp)
                     )
                     Text(
                         text = stringResource(R.string.app_name),

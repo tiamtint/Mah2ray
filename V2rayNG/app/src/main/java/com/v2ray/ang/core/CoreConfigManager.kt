@@ -5,6 +5,7 @@ import android.text.TextUtils
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.R
 import com.v2ray.ang.dto.ConfigResult
 import com.v2ray.ang.dto.CoreConfigContext
 import com.v2ray.ang.dto.V2rayConfig
@@ -42,7 +43,9 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext)
             }
-            return toConfigResult(configContext, buildUnifiedConfig(configContext))
+            val dependency = AetherDependency.of(configContext.resolvedOutbounds)
+            aetherFailure(context, guid, dependency)?.let { return it }
+            return toConfigResult(configContext, buildUnifiedConfig(configContext), dependency)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config", e)
             return ConfigResult(
@@ -56,9 +59,10 @@ object CoreConfigManager {
     /**
      * Build a lightweight configuration for latency testing.
      *
-     * The core flow is reused, then non-essential sections are removed.
+     * The core flow is reused, then non-essential sections are removed. A configuration that runs
+     * on an Aether profile is pointed at [aetherPort] when the test opens a core of its own.
      */
-    fun getV2rayConfig4Speedtest(context: Context, guid: String): ConfigResult {
+    fun getV2rayConfig4Speedtest(context: Context, guid: String, aetherPort: Int = AetherCoreManager.socksPort): ConfigResult {
         try {
             val configContext = CoreConfigContextBuilder.build(context, guid)
                 ?: return ConfigResult(
@@ -69,10 +73,16 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext)
             }
+            // Only the primary outbound is measured; the routing outbounds lose their rules below.
+            val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
+            aetherFailure(context, guid, dependency)?.let { return it }
             val v2rayConfig = buildUnifiedConfig(configContext)
             postProcessForSpeedtest(v2rayConfig)
+            if (aetherPort != AetherCoreManager.socksPort) {
+                rebindAetherOutbounds(v2rayConfig.outbounds, aetherPort)
+            }
 
-            return toConfigResult(configContext, v2rayConfig)
+            return toConfigResult(configContext, v2rayConfig, dependency)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config for speedtest", e)
             return ConfigResult(
@@ -158,11 +168,31 @@ object CoreConfigManager {
             val templateConfig = initV2rayConfig(configContext)
             templateConfig.inbounds.firstOrNull { it.tag == "tun" }?.let { inboundTun ->
                 inboundTun.settings?.mtu = SettingsManager.getVpnMtu()
+                // The injected inbound must be able to map the fake IPs of a fakedns config back
+                // to domains; the user's own inbounds are left as written
+                if (hasFakeDnsServer(json)) {
+                    inboundTun.sniffing?.destOverride?.let { if ("fakedns" !in it) it.add("fakedns") }
+                }
                 inboundsJson.add(JsonUtil.parseString(JsonUtil.toJson(inboundTun)))
             }
         }
 
         return JsonUtil.toJsonPretty(json)?.let { ConfigResult(true, configContext.guid, it) } ?: result
+    }
+
+    /**
+     * Check whether the DNS servers of a custom config include fakedns, written either as the
+     * plain "fakedns" string or as a server object whose address is "fakedns".
+     */
+    private fun hasFakeDnsServer(json: JsonObject): Boolean {
+        val servers = json.get("dns")?.takeIf { it.isJsonObject }?.asJsonObject
+            ?.get("servers")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?: return false
+        return servers.any { server ->
+            val address = if (server.isJsonObject) server.asJsonObject.get("address") else server
+            address != null && address.isJsonPrimitive && address.asJsonPrimitive.isString
+                    && address.asString == "fakedns"
+        }
     }
 
     /**
@@ -452,12 +482,43 @@ object CoreConfigManager {
     /**
      * Serialize a runtime configuration into a standard result object.
      */
-    private fun toConfigResult(configContext: CoreConfigContext, v2rayConfig: V2rayConfig): ConfigResult {
+    private fun toConfigResult(configContext: CoreConfigContext, v2rayConfig: V2rayConfig, dependency: AetherDependency): ConfigResult {
         return ConfigResult(
             status = true,
             guid = configContext.guid,
-            content = JsonUtil.toJsonPretty(v2rayConfig) ?: ""
+            content = JsonUtil.toJsonPretty(v2rayConfig) ?: "",
+            aetherProfile = (dependency as? AetherDependency.Single)?.profile,
         )
+    }
+
+    /**
+     * A configuration the one Aether core cannot serve, as a failure whose message is a resource
+     * string meant for the screen; null when the configuration is fine.
+     */
+    private fun aetherFailure(context: Context, guid: String, dependency: AetherDependency): ConfigResult? {
+        val message = when (dependency) {
+            AetherDependency.None, is AetherDependency.Single -> return null
+            AetherDependency.Conflicting -> R.string.aether_config_single_profile
+            is AetherDependency.NotEntryHop -> R.string.aether_chain_entry_only
+        }
+        LogUtil.w(AppConfig.TAG, "Aether cannot serve this configuration: $dependency, guid=$guid")
+        return ConfigResult(status = false, guid = guid, errorMessage = context.getString(message), localizedError = true)
+    }
+
+    /**
+     * Points every Aether outbound at [port] instead of the session port. A latency test of a
+     * configuration that runs on Aether opens a core of its own when the daemon's session is busy
+     * with another profile or absent, and that core listens on a port of its own.
+     */
+    internal fun rebindAetherOutbounds(outbounds: List<V2rayConfig.OutboundBean>, port: Int) {
+        outbounds.forEach { outbound ->
+            val settings = outbound.settings ?: return@forEach
+            if (outbound.protocol.equals(EConfigType.SOCKS.name, ignoreCase = true) &&
+                settings.address == AppConfig.LOOPBACK && settings.port == AetherCoreManager.socksPort
+            ) {
+                settings.port = port
+            }
+        }
     }
 
     /**
@@ -530,7 +591,7 @@ object CoreConfigManager {
             inbound1.settings?.auth = "noauth"
             inbound1.settings?.accounts = null
         }
-        val fakedns = MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED) == true
+        val fakedns = MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED, true)
         val sniffAllTlsAndHttp =
             MmkvManager.decodeSettingsBool(AppConfig.PREF_SNIFFING_ENABLED, true) != false
         inbound1.sniffing?.enabled = fakedns || sniffAllTlsAndHttp
@@ -569,8 +630,8 @@ object CoreConfigManager {
      * Enable fake DNS when local DNS and fake DNS are both enabled.
      */
     private fun configureFakeDns(v2rayConfig: V2rayConfig) {
-        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_LOCAL_DNS_ENABLED) == true
-            && MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED) == true
+        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_LOCAL_DNS_ENABLED, true)
+            && MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED, true)
         ) {
             v2rayConfig.fakedns = listOf(V2rayConfig.FakednsBean())
         }
@@ -618,11 +679,11 @@ object CoreConfigManager {
      * Configure local DNS inbounds, outbounds, and routing rules.
      */
     private fun configureLocalDns(configContext: CoreConfigContext, v2rayConfig: V2rayConfig) {
-        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_LOCAL_DNS_ENABLED) != true) {
+        if (!MmkvManager.decodeSettingsBool(AppConfig.PREF_LOCAL_DNS_ENABLED, true)) {
             return
         }
 
-        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED) == true) {
+        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED, true)) {
             val geositeCn = arrayListOf(AppConfig.GEOSITE_CN)
             val routingDomains = configContext.routingDomainRules
                 .asSequence()
@@ -668,7 +729,7 @@ object CoreConfigManager {
                 V2rayConfig.OutboundBean(
                     protocol = "dns",
                     tag = "dns-out",
-                    settings = null,
+                    settings = V2rayConfig.OutboundBean.OutSettingsBean(userLevel = 12),
                     streamSettings = null,
                     mux = null
                 )
@@ -701,7 +762,7 @@ object CoreConfigManager {
                 V2rayConfig.OutboundBean(
                     protocol = "dns",
                     tag = "dns-out",
-                    settings = null,
+                    settings = V2rayConfig.OutboundBean.OutSettingsBean(userLevel = 12),
                     streamSettings = null,
                     mux = null
                 )
@@ -892,8 +953,10 @@ object CoreConfigManager {
             enableParallelQuery = if ((domesticDns.size + remoteDns.size) > 2) true else null
         )
 
+        // DNS routing, inserted at the top so user rules cannot hijack DNS module queries
+        val dnsRouteRules = mutableListOf<V2rayConfig.RoutingBean.RulesBean>()
         if (domesticDnsTags.isNotEmpty()) {
-            v2rayConfig.routing.rules.add(
+            dnsRouteRules.add(
                 V2rayConfig.RoutingBean.RulesBean(
                     outboundTag = AppConfig.TAG_DIRECT,
                     inboundTag = ArrayList(domesticDnsTags),
@@ -904,7 +967,7 @@ object CoreConfigManager {
 
         val dnsProxyBalancerTag = policyGroupBalancerTags[AppConfig.TAG_PROXY]
         if (dnsProxyBalancerTag != null) {
-            v2rayConfig.routing.rules.add(
+            dnsRouteRules.add(
                 V2rayConfig.RoutingBean.RulesBean(
                     balancerTag = dnsProxyBalancerTag,
                     inboundTag = arrayListOf(AppConfig.TAG_DNS),
@@ -912,7 +975,7 @@ object CoreConfigManager {
                 )
             )
         } else {
-            v2rayConfig.routing.rules.add(
+            dnsRouteRules.add(
                 V2rayConfig.RoutingBean.RulesBean(
                     outboundTag = AppConfig.TAG_PROXY,
                     inboundTag = arrayListOf(AppConfig.TAG_DNS),
@@ -920,6 +983,7 @@ object CoreConfigManager {
                 )
             )
         }
+        v2rayConfig.routing.rules.addAll(0, dnsRouteRules)
     }
 
     private fun buildDnsHostsFromRoutingRules(configContext: CoreConfigContext): MutableMap<String, Any> {
@@ -1002,6 +1066,7 @@ object CoreConfigManager {
                     domains = cnDomains,
                     expectIPs = geoipCn,
                     skipFallback = true,
+                    finalQuery = true,
                     tag = cnDomesticDnsTag
                 )
             )
@@ -1027,6 +1092,7 @@ object CoreConfigManager {
                                 address = address,
                                 domains = rule.domain,
                                 skipFallback = true,
+                                finalQuery = true,
                                 tag = tag
                             )
                         )

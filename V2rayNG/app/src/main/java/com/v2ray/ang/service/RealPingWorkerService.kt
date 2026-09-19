@@ -1,6 +1,8 @@
 package com.v2ray.ang.service
 
 import android.content.Context
+import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.AetherDelayTester
 import com.v2ray.ang.core.CoreConfigManager
 import com.v2ray.ang.core.CoreNativeManager
 import com.v2ray.ang.dto.RealPingEvent
@@ -108,6 +110,32 @@ class RealPingWorkerService(
         val retFailure = -1L
 
         val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
+        if (config.configType == EConfigType.AETHER) {
+            return AetherDelayTester.measure(context, guid, config, SettingsManager.getDelayTestUrl())
+        }
+
+        val configResult = CoreConfigManager.getV2rayConfig4Speedtest(context, guid)
+        if (!configResult.status) {
+            return retFailure
+        }
+        val aether = configResult.aetherProfile
+        if (aether != null) {
+            // The configuration reaches the internet through an Aether outbound, so it is measured behind
+            // a core serving that profile: the live session, or a test tunnel on its own port, which the
+            // configuration is rebuilt to point at. Its own server is not probed: it is only reachable
+            // through that core.
+            return AetherDelayTester.measureVia(context, guid, aether) { port, _ ->
+                val content = if (port == AetherCoreManager.socksPort) {
+                    configResult.content
+                } else {
+                    CoreConfigManager.getV2rayConfig4Speedtest(context, guid, port).takeIf { it.status }?.content
+                        ?: return@measureVia retFailure
+                }
+                RealPingExecutionLimiter.run(config.configType) {
+                    CoreNativeManager.measureOutboundDelay(content, SettingsManager.getDelayTestUrl())
+                }
+            }
+        }
         if (!config.configType.isComplexType()
             && config.configType != EConfigType.HYSTERIA2
             && config.configType != EConfigType.WIREGUARD
@@ -123,10 +151,6 @@ class RealPingWorkerService(
             }
         }
 
-        val configResult = CoreConfigManager.getV2rayConfig4Speedtest(context, guid)
-        if (!configResult.status) {
-            return retFailure
-        }
         return RealPingExecutionLimiter.run(config.configType) {
             CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl())
         }
@@ -136,6 +160,9 @@ class RealPingWorkerService(
         val retFailure = -1L
 
         val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
+        if (config.configType == EConfigType.AETHER) {
+            return AetherDelayTester.reachability(config)
+        }
         if (!config.configType.isComplexType()
             && config.configType != EConfigType.HYSTERIA2
             && config.configType != EConfigType.WIREGUARD

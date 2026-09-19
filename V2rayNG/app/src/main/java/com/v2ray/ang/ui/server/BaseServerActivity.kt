@@ -233,6 +233,7 @@ abstract class BaseServerActivity : BaseComponentActivity() {
                 state.finalMask,
                 { state.finalMask = it }
             )
+            CommonDialModeField(state)
             if (state.network == NetworkType.WS.type || state.network == NetworkType.XHTTP.type) {
                 FormDropdownField(
                     stringResource(R.string.server_lab_browser_dialer),
@@ -242,6 +243,27 @@ abstract class BaseServerActivity : BaseComponentActivity() {
                 )
             }
         }
+    }
+
+    /** dialMode goes to streamSettings.sockopt, so every protocol offers it. */
+    @Composable
+    protected fun CommonDialModeField(state: ServerUiState) {
+        FormTextField(
+            stringResource(R.string.server_lab_dial_mode),
+            state.dialMode,
+            { state.dialMode = it }
+        )
+    }
+
+    /** targetStrategy is an option of every Xray outbound, so every protocol offers it. */
+    @Composable
+    protected fun CommonTargetStrategyField(state: ServerUiState) {
+        FormDropdownField(
+            stringResource(R.string.server_lab_target_strategy),
+            state.targetStrategy,
+            stringArrayResource(R.array.target_strategy_values).toList(),
+            { state.targetStrategy = it }
+        )
     }
 
     @Composable
@@ -369,7 +391,7 @@ abstract class BaseServerActivity : BaseComponentActivity() {
         }
     }
 
-    protected fun validateBasicConfig(state: ServerUiState): Boolean {
+    protected open fun validateBasicConfig(state: ServerUiState): Boolean {
         if (state.remarks.isBlank()) {
             toast(R.string.server_lab_remarks)
             return false

@@ -32,13 +32,42 @@ object CoreOutboundBuilder {
             EConfigType.WIREGUARD -> toOutboundWireguard(profileItem)
             EConfigType.HYSTERIA2 -> toOutboundHysteria2(profileItem)
             EConfigType.HTTP -> toOutboundHttp(profileItem)
+            EConfigType.AETHER -> toOutboundAether()
             else -> null
         }
 
         outbound ?: return null
+        applyDialMode(outbound, profileItem)
+        applyTargetStrategy(outbound, profileItem)
         val ret = updateOutboundWithGlobalSettings(outbound)
         if (!ret) return null
         return outbound
+    }
+
+    /**
+     * Copies the profile dialMode into streamSettings.sockopt.dialMode.
+     *
+     * Only the dialMode field is written, so sockopt options set elsewhere
+     * (dialerProxy, domainStrategy, happyEyeballs, ...) are kept.
+     */
+    internal fun applyDialMode(outbound: OutboundBean, profileItem: ProfileItem) {
+        val dialMode = profileItem.dialMode.nullIfBlank() ?: return
+        if (outbound.streamSettings == null) {
+            // wireguard outbounds are built without streamSettings, but Xray still dials
+            // their endpoint through the system dialer with streamSettings.sockopt.
+            // Add one that only carries sockopt: network stays unset as there is no transport.
+            outbound.streamSettings = OutboundBean.StreamSettingsBean(network = null)
+        }
+        outbound.ensureSockopt().dialMode = dialMode
+    }
+
+    /**
+     * Copies the profile targetStrategy onto the outbound. Blank and AsIs, Xray's default, leave
+     * the field out, so a profile saved with the default emits nothing new.
+     */
+    internal fun applyTargetStrategy(outbound: OutboundBean, profileItem: ProfileItem) {
+        outbound.targetStrategy = profileItem.targetStrategy?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.equals(AppConfig.TARGET_STRATEGY_AS_IS, ignoreCase = true) }
     }
 
     /** Applies global outbound options (mux, protocol-specific tweaks, etc.). */
@@ -122,7 +151,6 @@ object CoreOutboundBuilder {
             settings.port = profileItem.serverPort.orEmpty().toInt()
             settings.id = profileItem.password.orEmpty()
             settings.security = profileItem.method
-            settings.level = AppConfig.DEFAULT_LEVEL
         }
 
         val sni = outboundBean?.streamSettings?.let {
@@ -145,7 +173,6 @@ object CoreOutboundBuilder {
             settings.id = profileItem.password.orEmpty()
             settings.encryption = profileItem.method
             settings.flow = profileItem.flow
-            settings.level = AppConfig.DEFAULT_LEVEL
         }
 
         val sni = outboundBean?.streamSettings?.let {
@@ -167,7 +194,6 @@ object CoreOutboundBuilder {
             settings.port = profileItem.serverPort.orEmpty().toInt()
             settings.password = profileItem.password
             settings.method = profileItem.method
-            settings.level = AppConfig.DEFAULT_LEVEL
         }
 
         val sni = outboundBean?.streamSettings?.let {
@@ -189,7 +215,6 @@ object CoreOutboundBuilder {
             settings.port = profileItem.serverPort.orEmpty().toInt()
             settings.password = profileItem.password
             settings.flow = profileItem.flow
-            settings.level = AppConfig.DEFAULT_LEVEL
         }
 
         val sni = outboundBean?.streamSettings?.let {
@@ -209,11 +234,21 @@ object CoreOutboundBuilder {
         outboundBean?.settings?.let { settings ->
             settings.address = getServerAddress(profileItem)
             settings.port = profileItem.serverPort.orEmpty().toInt()
-            settings.level = AppConfig.DEFAULT_LEVEL
             if (profileItem.username.isNotNullEmpty()) {
                 settings.user = profileItem.username.orEmpty()
                 settings.pass = profileItem.password.orEmpty()
             }
+        }
+
+        return outboundBean
+    }
+
+    private fun toOutboundAether(): OutboundBean? {
+        val outboundBean = createInitOutbound(EConfigType.SOCKS)
+
+        outboundBean?.settings?.let { settings ->
+            settings.address = AppConfig.LOOPBACK
+            settings.port = AetherCoreManager.socksPort
         }
 
         return outboundBean
@@ -225,7 +260,6 @@ object CoreOutboundBuilder {
         outboundBean?.settings?.let { settings ->
             settings.address = getServerAddress(profileItem)
             settings.port = profileItem.serverPort.orEmpty().toInt()
-            settings.level = AppConfig.DEFAULT_LEVEL
             if (profileItem.username.isNotNullEmpty()) {
                 settings.user = profileItem.username.orEmpty()
                 settings.pass = profileItem.password.orEmpty()
