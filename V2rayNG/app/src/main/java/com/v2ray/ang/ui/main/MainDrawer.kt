@@ -88,7 +88,7 @@ fun MainDrawerContent(drawerState: DrawerState, onNavigate: (MainDestination) ->
                     // PattNG: full-color circular logo, no dark-mode tint (tinting a photo logo
                     // would flatten it into a white disc)
                     Image(
-                        painter = painterResource(R.mipmap.ic_launcher),
+                        painter = painterResource(R.drawable.ic_mah2ray_logo),
                         contentDescription = null,
                         modifier = Modifier.size(120.dp)
                     )
