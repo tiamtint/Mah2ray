@@ -4,10 +4,11 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.V2rayConfig.OutboundBean
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import com.v2ray.ang.util.JsonUtil
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
 
 /**
  * Unit tests for CoreOutboundBuilder.applyDialMode: dialMode must land in
@@ -71,6 +72,64 @@ class CoreOutboundBuilderTest {
         assertEquals("code-1", outbound.streamSettings?.sockopt?.dialMode)
     }
 
+    /** A profile whose sni and finalMask keep populateTlsSettings away from Utils and MMKV. */
+    private fun echProfile(security: String, echOutbound: String): ProfileItem =
+        ProfileItem.create(EConfigType.VLESS).apply {
+            this.security = security
+            sni = "example.com"
+            finalMask = "{}"
+            echConfigList = "cloudflare-ech.com+https://1.1.1.1/dns-query"
+            this.echOutbound = echOutbound
+        }
+
+    @Test
+    fun test_populateTlsSettings_attachesTheEchOutboundForTlsAsWritten() {
+        // EchOutbound.serialize checks it, so an invalid one reaches it too and fails the configuration there.
+        for (echOutbound in listOf("""{"tag": "ech-out", "protocol": "freedom"}""", """{"tag": "proxy"}""")) {
+            val streamSettings = OutboundBean.StreamSettingsBean()
+
+            CoreOutboundBuilder.populateTlsSettings(streamSettings, echProfile(AppConfig.TLS, echOutbound), null)
+
+            assertEquals(echOutbound, streamSettings.tlsSettings?.echOutbound)
+        }
+    }
+
+    @Test
+    fun test_populateTlsSettings_attachesNoEchOutboundForRealityOrABlankOne() {
+        val reality = OutboundBean.StreamSettingsBean()
+        CoreOutboundBuilder.populateTlsSettings(reality, echProfile(AppConfig.REALITY, """{"tag": "ech-out"}"""), null)
+        assertNotNull(reality.realitySettings)
+        assertNull(reality.realitySettings?.echOutbound)
+
+        val blank = OutboundBean.StreamSettingsBean()
+        CoreOutboundBuilder.populateTlsSettings(blank, echProfile(AppConfig.TLS, " "), null)
+        assertNotNull(blank.tlsSettings)
+        assertNull(blank.tlsSettings?.echOutbound)
+    }
+
+    @Test
+    fun test_populateTlsSettings_offersTheAlpnAsWrittenCommaSeparated() {
+        // TlsSettingsCheck reads alpn with alpnProtocols as well, to refuse what WebSocket and HTTPUpgrade cannot use.
+        val offered = mapOf(
+            " h2 , http/1.1," to listOf("h2", "http/1.1"),
+            "http/1.1" to listOf("http/1.1"),
+            "h3,,h2" to listOf("h3", "h2"),
+            // Only a comma parts two; Xray is offered what is between as one name.
+            "h2 http/1.1" to listOf("h2 http/1.1"),
+            " , " to null,
+            "" to null,
+            null to null,
+        )
+        for ((alpn, protocols) in offered) {
+            val streamSettings = OutboundBean.StreamSettingsBean()
+
+            CoreOutboundBuilder.populateTlsSettings(streamSettings, echProfile(AppConfig.TLS, " ").apply { this.alpn = alpn }, null)
+
+            assertEquals(protocols, streamSettings.tlsSettings?.alpn, "$alpn")
+            assertEquals(protocols.orEmpty(), CoreOutboundBuilder.alpnProtocols(alpn), "$alpn")
+        }
+    }
+
     @Test
     fun test_applyTargetStrategy_setsOutboundTargetStrategy() {
         val outbound = OutboundBean(protocol = "vless")
@@ -92,5 +151,26 @@ class CoreOutboundBuilderTest {
 
         CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.VLESS))
         assertNull(outbound.targetStrategy)
+    }
+
+    @Test
+    fun test_toOutboundAetherExit_carriesTheFinalMaskAndDialModeOfTheAetherProfile() {
+        val plain = CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN)
+        assertEquals(AppConfig.TAG_EXIT_NODE, plain.tag)
+        assertEquals("freedom", plain.protocol)
+        assertNull(plain.mux)
+        assertNull(plain.streamSettings)
+
+        val mask = """{"tcp": [{"type": "fragment", "settings": {"packets": "tlshello"}}]}"""
+        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(finalMask = mask, dialMode = "code-1"))
+        assertEquals(JsonUtil.parseString(mask), exit.streamSettings?.finalmask)
+        assertEquals("code-1", exit.streamSettings?.sockopt?.dialMode)
+        // A freedom outbound has no transport to name.
+        assertNull(exit.streamSettings?.network)
+
+        val dialOnly = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(dialMode = "code-1"))
+        assertEquals("code-1", dialOnly.streamSettings?.sockopt?.dialMode)
+        assertNull(dialOnly.streamSettings?.finalmask)
+        assertNull(dialOnly.streamSettings?.network)
     }
 }

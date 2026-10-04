@@ -203,6 +203,12 @@ object CoreConfigContextBuilder {
     }
 
     /**
+     * PattNG: true when [profile], selected, runs as a chain with the hops its subscription puts
+     * around every one of its profiles; see [resolveProxyChainProfilesFromGroup].
+     */
+    internal fun isChained(profile: ProfileItem): Boolean = resolveProxyChainProfilesFromGroup(profile).size > 1
+
+    /**
      * Resolve chain nodes from subscription neighbors in order: next, current, prev.
      *
      * When no chain is available, return a single-node result.
@@ -283,17 +289,17 @@ object CoreConfigContextBuilder {
      * so a conflict there is reported instead.
      */
     internal fun withOneAetherProfile(members: List<ProfileItem>): Pair<List<ProfileItem>, List<ProfileItem>> {
-        var kept: List<String>? = null
+        var kept: AetherCore? = null
         return members.partition { member ->
             if (member.configType != EConfigType.AETHER) return@partition true
-            val arguments = AetherCoreManager.buildArguments(member, AetherCoreManager.socksPort)
+            val core = AetherCore.of(member)
             when (kept) {
                 null -> {
-                    kept = arguments
+                    kept = core
                     true
                 }
 
-                arguments -> true
+                core -> true
                 else -> false
             }
         }

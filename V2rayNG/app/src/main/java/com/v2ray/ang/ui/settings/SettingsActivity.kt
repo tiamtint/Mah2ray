@@ -105,6 +105,7 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val systemVpnSettingsAvailable by viewModel.systemVpnSettingsAvailable.collectAsStateWithLifecycle()
+    val aetherListenPort by viewModel.aetherListenPort.collectAsStateWithLifecycle()
     var uiSettingsExpanded by rememberSaveable { mutableStateOf(true) }
     var vpnSettingsExpanded by rememberSaveable { mutableStateOf(true) }
     var coreSettingsExpanded by rememberSaveable { mutableStateOf(true) }
@@ -472,6 +473,13 @@ fun SettingsScreen(
                     checked = socksEnableUdp,
                     enabled = effectiveLocalProxy,
                     onCheckedChange = { socksEnableUdp = it }
+                )
+                // PattNG: the port every Aether core listens on, the three after it taken as well; it is there with or without the local proxy.
+                SettingsEditItem(
+                    title = stringResource(R.string.title_pref_aether_listen_port),
+                    value = aetherListenPort,
+                    keyboardNumber = true,
+                    onValueChanged = viewModel::setAetherListenPort
                 )
                 SettingsEditItem(
                     title = stringResource(R.string.title_pref_remote_dns),

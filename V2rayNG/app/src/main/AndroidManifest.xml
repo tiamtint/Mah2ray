@@ -112,6 +112,10 @@
             android:exported="false"
             android:windowSoftInputMode="stateUnchanged|adjustResize" />
         <activity
+            android:name=".ui.server.ServerAetherKeysActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateUnchanged|adjustResize" />
+        <activity
             android:name=".ui.server.ServerHysteria2Activity"
             android:exported="false"
             android:windowSoftInputMode="stateUnchanged|adjustResize" />
@@ -282,7 +286,7 @@
 
         <receiver
             android:name=".receiver.WidgetProvider"
-            android:exported="true"
+            android:exported="false"
             android:process=":daemon">
             <meta-data
                 android:name="android.appwidget.provider"
@@ -322,7 +326,7 @@
         <!-- =====================Tasker===================== -->
         <activity
             android:name=".ui.shortcut.TaskerActivity"
-            android:exported="true"
+            android:exported="false"
             android:icon="@mipmap/ic_launcher">
             <intent-filter>
                 <action android:name="com.twofortyfouram.locale.intent.action.EDIT_SETTING" />
@@ -331,9 +335,8 @@
 
         <receiver
             android:name=".receiver.TaskerReceiver"
-            android:exported="true"
-            android:process=":daemon"
-            tools:ignore="ExportedReceiver">
+            android:exported="false"
+            android:process=":daemon">
             <intent-filter>
                 <action android:name="com.twofortyfouram.locale.intent.action.FIRE_SETTING" />
             </intent-filter>

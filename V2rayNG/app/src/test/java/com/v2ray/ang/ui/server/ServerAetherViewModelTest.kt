@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherIdentity
+import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.dto.AetherEndpoint
@@ -13,18 +14,20 @@ import com.v2ray.ang.enums.EConfigType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import kotlinx.coroutines.withContext
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 
 class ServerAetherViewModelTest {
@@ -32,34 +35,41 @@ class ServerAetherViewModelTest {
     private val profile = ProfileItem.create(EConfigType.AETHER).apply { aetherProtocol = AetherProtocol.MASQUE.type }
     private val found = AetherScanResult(AetherEndpoint("162.159.197.3", 443))
     private val oldKey = AetherIdentity("a1b2c3d4e5f6", "172.16.0.2", "2606:4700:110:8a36::1")
-    private val newKey = AetherIdentity("f6e5d4c3b2a1", "172.16.0.2", "2606:4700:110:8a36::2")
 
     private class FakeSource : AetherEditorSource {
         var available = true
         var session: AetherSession? = null
         var scanner: suspend (ProfileItem, (String) -> Unit) -> AetherScanResult? = { _, _ -> null }
-        var renewer: suspend (ProfileItem, (String) -> Unit) -> AetherIdentityStatus? = { _, _ -> null }
+        var clearer: suspend () -> Boolean = { true }
+        var regions: List<String> = emptyList()
+        var port = 10819
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
+        val missingFiles = mutableSetOf<String>()
 
         override suspend fun isCoreAvailable() = available
+        override suspend fun isPsiphonAvailable(): Boolean = false
+        override suspend fun isTorTransportsAvailable(): Boolean = false
         override suspend fun activeSession() = session
         override suspend fun scan(profile: ProfileItem, onOutput: (String) -> Unit) = scanner(profile, onOutput)
         override suspend fun identityStatus(protocol: AetherProtocol) =
             identities[protocol] ?: AetherIdentityStatus(protocol, null)
 
-        override suspend fun renewIdentity(profile: ProfileItem, onOutput: (String) -> Unit) = renewer(profile, onOutput)
+        override suspend fun missingKeys(files: List<String>) = files.filter { it in missingFiles }
+        override suspend fun clearPsiphonData() = clearer()
+        override suspend fun psiphonRegions() = regions
+        override suspend fun listenPort() = port
     }
 
     private val source = FakeSource()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    @Before
+    @BeforeEach
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    @After
+    @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
     }
@@ -77,9 +87,14 @@ class ServerAetherViewModelTest {
 
         assertEquals(AetherScanState.Idle, viewModel.scanState.value)
         assertFalse(viewModel.isCoreAvailable.value)
-        assertFalse(viewModel.isRenewingIdentity.value)
         assertNull(viewModel.session.value)
         assertTrue(viewModel.log.value.isEmpty())
+    }
+
+    @Test
+    fun theCommandIsBuiltOnTheListenPortOfTheSettings() {
+        source.port = 20808
+        assertEquals(20808, viewModel().listenPort.value)
     }
 
     @Test
@@ -159,16 +174,16 @@ class ServerAetherViewModelTest {
     fun aSecondActionWaitsForTheFirstToFinish() {
         val pending = CompletableDeferred<AetherScanResult?>()
         var scans = 0
-        var renewals = 0
+        var clears = 0
         source.scanner = { _, _ -> scans++; pending.await() }
-        source.renewer = { _, _ -> renewals++; null }
+        source.clearer = { clears++; true }
         val viewModel = viewModel()
 
         viewModel.scan(profile)
         viewModel.scan(profile)
-        viewModel.renewIdentity(profile)
+        viewModel.clearPsiphonData()
         assertEquals(1, scans)
-        assertEquals(0, renewals)
+        assertEquals(0, clears)
 
         pending.complete(null)
         viewModel.onScanHandled()
@@ -237,42 +252,53 @@ class ServerAetherViewModelTest {
     }
 
     @Test
-    fun goolReportsBothHopKeys() {
-        val status = AetherIdentityStatus(AetherProtocol.GOOL, oldKey, null)
+    fun aTwoHopProtocolReportsBothHopKeys() {
+        for (protocol in listOf(AetherProtocol.GOOL, AetherProtocol.MIM)) {
+            val status = AetherIdentityStatus(protocol, oldKey, null)
 
-        assertEquals(
-            listOf(
-                resource(R.string.aether_log_outer_key_ready, "a1b2c3d4…", "172.16.0.2", "2606:4700:110:8a36::1"),
-                resource(R.string.aether_log_inner_key_missing),
-            ),
-            ServerAetherViewModel.identityLines(status)
-        )
+            assertEquals(
+                listOf(
+                    resource(R.string.aether_log_outer_key_ready, "a1b2c3d4…", "172.16.0.2", "2606:4700:110:8a36::1"),
+                    resource(R.string.aether_log_inner_key_missing),
+                ),
+                ServerAetherViewModel.identityLines(status)
+            )
+        }
     }
 
     @Test
-    fun renewingTheKeyShowsTheNewKey() {
-        val pending = CompletableDeferred<AetherIdentityStatus?>()
-        source.renewer = { _, onOutput ->
-            onOutput("[2026-09-11T10:00:00.000Z INFO  aether] [+] provisioned and saved new masque identity")
-            pending.await()
+    fun aCancelledScanStaysBusyUntilItHasStopped() {
+        val stopped = CompletableDeferred<Unit>()
+        var scans = 0
+        var clears = 0
+        source.clearer = { clears++; true }
+        source.scanner = { _, _ ->
+            scans++
+            try {
+                awaitCancellation()
+            } finally {
+                // The core is still being ended, as a real one takes a moment to.
+                withContext(NonCancellable) { stopped.await() }
+            }
         }
         val viewModel = viewModel()
 
-        viewModel.renewIdentity(profile)
-        assertTrue(viewModel.isRenewingIdentity.value)
+        viewModel.scan(profile)
+        viewModel.cancelScan()
 
-        pending.complete(AetherIdentityStatus(AetherProtocol.MASQUE, newKey))
+        assertEquals(AetherScanState.Scanning, viewModel.scanState.value)
+        viewModel.scan(profile)
+        viewModel.clearPsiphonData()
+        viewModel.cancelScan()
+        assertEquals(1, scans)
+        assertEquals(0, clears)
+        assertEquals(1, viewModel.texts().count { it == resource(R.string.aether_log_scan_cancelled) })
 
-        assertFalse(viewModel.isRenewingIdentity.value)
-        assertEquals(
-            listOf(
-                resource(R.string.aether_log_key_renewing),
-                AetherLogText.Raw("[+] provisioned and saved new masque identity"),
-                resource(R.string.aether_log_key_renewed),
-                resource(R.string.aether_log_masque_key_ready, "f6e5d4c3…", "172.16.0.2", "2606:4700:110:8a36::2"),
-            ),
-            viewModel.texts()
-        )
+        stopped.complete(Unit)
+
+        assertEquals(AetherScanState.Idle, viewModel.scanState.value)
+        viewModel.scan(profile)
+        assertEquals(2, scans)
     }
 
     @Test
@@ -283,28 +309,38 @@ class ServerAetherViewModelTest {
     }
 
     @Test
-    fun theKeyIsNotRenewedUnderALiveSession() {
-        var renewals = 0
-        source.renewer = { _, _ -> renewals++; null }
+    fun theExitCountriesOnOfferComeFromTheServerList() {
+        assertTrue(viewModel().psiphonRegions.value.isEmpty())
+        source.regions = listOf("DE", "US")
+        assertEquals(listOf("DE", "US"), viewModel().psiphonRegions.value)
+    }
+
+    @Test
+    fun psiphonDataIsNotClearedUnderALiveSessionAndTheLogTellsTheOutcome() {
+        var clears = 0
+        source.clearer = { clears++; true }
         val viewModel = viewModel()
-        assertNull(viewModel.session.value)
 
-        // Renewal replaces every key file, so a session of another protocol blocks it as well.
-        source.session = AetherSession(AetherProtocol.WIREGUARD)
-        viewModel.renewIdentity(profile)
-
-        assertEquals(0, renewals)
-        assertEquals(AetherSession(AetherProtocol.WIREGUARD), viewModel.session.value)
-        assertFalse(viewModel.isRenewingIdentity.value)
+        source.session = AetherSession(AetherProtocol.MASQUE)
+        viewModel.clearPsiphonData()
+        assertEquals(0, clears)
         val blocked = viewModel.log.value.single()
-        assertEquals(resource(R.string.aether_renew_blocked), blocked.text)
+        assertEquals(resource(R.string.aether_psiphon_clear_blocked), blocked.text)
         assertEquals(Log.WARN, blocked.priority)
 
         source.session = null
-        viewModel.refreshSession()
-        assertNull(viewModel.session.value)
-        viewModel.renewIdentity(profile)
-        assertEquals(1, renewals)
+        viewModel.clearPsiphonData()
+        assertEquals(1, clears)
+        val cleared = viewModel.log.value.last()
+        assertEquals(resource(R.string.aether_log_psiphon_cleared), cleared.text)
+        assertEquals(Log.INFO, cleared.priority)
+
+        source.clearer = { clears++; false }
+        viewModel.clearPsiphonData()
+        assertEquals(2, clears)
+        val failed = viewModel.log.value.last()
+        assertEquals(resource(R.string.aether_log_psiphon_clear_failed), failed.text)
+        assertEquals(Log.ERROR, failed.priority)
     }
 
     @Test
@@ -336,15 +372,69 @@ class ServerAetherViewModelTest {
     }
 
     @Test
-    fun aFailedRenewalSaysTheOldKeyWasKept() {
+    fun aScanWhoseKeysAreMissingAsksFirstAndGoesAheadWhenToldTo() {
+        var scans = 0
+        source.scanner = { _, _ -> scans++; found }
+        source.missingFiles += AetherIdentityManager.MASQUE_FILE
+        val viewModel = viewModel()
+        assertNull(viewModel.keysCheck.value)
+
+        viewModel.scan(profile)
+        assertEquals(0, scans)
+        assertEquals(AetherScanState.Idle, viewModel.scanState.value)
+        assertEquals(AetherKeysCheck.Missing(scan = true), viewModel.keysCheck.value)
+        assertTrue(viewModel.log.value.isEmpty())
+
+        viewModel.onKeysCheckHandled()
+        assertNull(viewModel.keysCheck.value)
+        viewModel.scan(profile, anyway = true)
+        assertEquals(1, scans)
+        assertNull(viewModel.keysCheck.value)
+        assertEquals(AetherScanState.Found(found), viewModel.scanState.value)
+    }
+
+    @Test
+    fun aScanNeedsOnlyTheKeysOfItsProtocol() {
+        var scans = 0
+        source.scanner = { _, _ -> scans++; null }
+        source.missingFiles += listOf(AetherIdentityManager.MASQUE_FILE, AetherIdentityManager.MASQUE_INNER_FILE)
         val viewModel = viewModel()
 
-        viewModel.renewIdentity(profile)
+        viewModel.scan(profile.copy(aetherProtocol = AetherProtocol.WIREGUARD.type))
+        assertEquals(1, scans)
+        assertNull(viewModel.keysCheck.value)
 
-        assertFalse(viewModel.isRenewingIdentity.value)
-        val failure = viewModel.log.value.last()
-        assertEquals(resource(R.string.aether_log_key_renew_failed), failure.text)
-        assertEquals(Log.ERROR, failure.priority)
+        viewModel.onScanHandled()
+        viewModel.scan(profile.copy(aetherProtocol = AetherProtocol.MIM.type))
+        assertEquals(1, scans)
+        assertEquals(AetherKeysCheck.Missing(scan = true), viewModel.keysCheck.value)
+    }
+
+    @Test
+    fun aSaveGoesOnOnlyWhenTheKeysTheProfileNeedsAreThere() {
+        val viewModel = viewModel()
+
+        viewModel.checkKeysBeforeSave(profile)
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        viewModel.onKeysCheckHandled()
+        assertNull(viewModel.keysCheck.value)
+
+        // A MASQUE profile needs no inner hop key; masque-in-masque does.
+        source.missingFiles += AetherIdentityManager.MASQUE_INNER_FILE
+        viewModel.checkKeysBeforeSave(profile)
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.MIM.type))
+        assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+
+        // A command written by hand counts as it runs.
+        source.missingFiles += AetherIdentityManager.WIREGUARD_FILE
+        viewModel.checkKeysBeforeSave(profile.copy(aetherCommand = "aether --bind 127.0.0.1:10819 --protocol wg"))
+        assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+
+        // Psiphon alone needs no WARP key at all.
+        source.missingFiles += AetherIdentityManager.KEY_FILES
+        viewModel.checkKeysBeforeSave(profile.copy(aetherPsiphon = "only"))
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
     }
 
     @Test

@@ -1,8 +1,8 @@
 package com.v2ray.ang.service
 
 import android.content.Context
-import com.v2ray.ang.core.AetherCoreManager
 import com.v2ray.ang.core.AetherDelayTester
+import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.core.CoreConfigManager
 import com.v2ray.ang.core.CoreNativeManager
 import com.v2ray.ang.dto.RealPingEvent
@@ -22,8 +22,10 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.concurrent.thread
 
 internal object RealPingExecutionLimiter {
     private val customConfigMutex = Mutex()
@@ -54,6 +56,9 @@ class RealPingWorkerService(
     private val concurrency = SettingsManager.getRealPingConcurrency()
     private val dispatcher = Executors.newFixedThreadPool(if (onlyTcp) concurrency * 2 else concurrency).asCoroutineDispatcher()
     private val scope = CoroutineScope(job + dispatcher + CoroutineName("RealPingBatchWorker"))
+
+    // Names the measurements of this batch in the native core, so that cancel() ends them and no other batch's
+    private val batch = UUID.randomUUID().toString()
 
     private val runningCount = AtomicInteger(0)
     private val totalCount = AtomicInteger(0)
@@ -96,6 +101,9 @@ class RealPingWorkerService(
 
     fun cancel() {
         job.cancel()
+        // A measurement blocks its thread in the native core, where a cancelled coroutine does not reach it. The
+        // native call runs on a thread of its own: cancel() is often called on the main thread of a service.
+        thread(name = "RealPingCancel") { CoreNativeManager.cancelOutboundDelays(batch) }
     }
 
     private fun close() {
@@ -110,7 +118,9 @@ class RealPingWorkerService(
         val retFailure = -1L
 
         val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
-        if (config.configType == EConfigType.AETHER) {
+        // An Aether profile is measured through its core alone, unless its subscription chains it with
+        // other hops: then it is measured as the chain it runs in, as every chained profile is.
+        if (config.configType == EConfigType.AETHER && !CoreConfigContextBuilder.isChained(config)) {
             return AetherDelayTester.measure(context, guid, config, SettingsManager.getDelayTestUrl())
         }
 
@@ -118,21 +128,15 @@ class RealPingWorkerService(
         if (!configResult.status) {
             return retFailure
         }
-        val aether = configResult.aetherProfile
+        val aether = configResult.aetherCore
         if (aether != null) {
             // The configuration reaches the internet through an Aether outbound, so it is measured behind
-            // a core serving that profile: the live session, or a test tunnel on its own port, which the
-            // configuration is rebuilt to point at. Its own server is not probed: it is only reachable
-            // through that core.
-            return AetherDelayTester.measureVia(context, guid, aether) { port, _ ->
-                val content = if (port == AetherCoreManager.socksPort) {
-                    configResult.content
-                } else {
-                    CoreConfigManager.getV2rayConfig4Speedtest(context, guid, port).takeIf { it.status }?.content
-                        ?: return@measureVia retFailure
-                }
+            // that core: the live session, or a test tunnel on the same port, which its Aether outbounds
+            // dial either way, and which dials out through a hop of the chain, as the session's would.
+            // Its own server is not probed: it is only reachable through that core.
+            return AetherDelayTester.measureVia(context, guid, aether, configResult.content) { _, _ ->
                 RealPingExecutionLimiter.run(config.configType) {
-                    CoreNativeManager.measureOutboundDelay(content, SettingsManager.getDelayTestUrl())
+                    CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl(), batch)
                 }
             }
         }
@@ -152,7 +156,7 @@ class RealPingWorkerService(
         }
 
         return RealPingExecutionLimiter.run(config.configType) {
-            CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl())
+            CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl(), batch)
         }
     }
 

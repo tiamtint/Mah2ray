@@ -5,6 +5,10 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.enums.EConfigType
 
 data class V2rayConfig(
+    /*Aether: the command line of the core the app runs for this configuration, first so that it heads the
+      exported file, where a person reads it and a custom configuration is read from it; Xray ignores the key.
+      Untyped, so a hand-written value of any shape still loads and is checked when the core is needed.*/
+    var aetherCommand: Any? = null,
     var remarks: String? = null,
     var stats: Any? = null,
     val log: LogBean,
@@ -101,6 +105,7 @@ data class V2rayConfig(
             val peers: List<WireGuardBean>? = null,
             var reserved: List<Int>? = null,
             var mtu: Int? = null,
+            var remoteDNS: List<String>? = null,
             var domainStrategy: String? = null,
         ) {
             data class WireGuardBean(
@@ -226,6 +231,10 @@ data class V2rayConfig(
                 val disableSystemRoot: Boolean? = null,
                 val enableSessionResumption: Boolean? = null,
                 var echConfigList: String? = null,
+                var echSockopt: SockoptBean? = null,
+                // PattNG: the profile's ECH outbound as written, which EchOutbound.serialize checks, links and
+                // appends; never serialized
+                @Transient var echOutbound: String? = null,
                 var verifyPeerCertByName: String? = null,
                 var pinnedPeerCertSha256: String? = null,
                 // REALITY settings
@@ -448,11 +457,6 @@ data class V2rayConfig(
             val timeout: String? = null
         )
     }
-
-    data class FakednsBean(
-        var ipPool: String = "198.18.0.0/15",
-        var poolSize: Int = 10000
-    ) // roughly 10 times smaller than total ip pool
 
     fun getProxyOutbound(): OutboundBean? {
         outbounds.forEach { outbound ->

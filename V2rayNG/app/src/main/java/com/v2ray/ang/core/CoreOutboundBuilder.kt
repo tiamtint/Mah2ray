@@ -32,12 +32,14 @@ object CoreOutboundBuilder {
             EConfigType.WIREGUARD -> toOutboundWireguard(profileItem)
             EConfigType.HYSTERIA2 -> toOutboundHysteria2(profileItem)
             EConfigType.HTTP -> toOutboundHttp(profileItem)
-            EConfigType.AETHER -> toOutboundAether()
+            EConfigType.AETHER -> toOutboundAether(profileItem)
             else -> null
         }
 
         outbound ?: return null
-        applyDialMode(outbound, profileItem)
+        // PattNG: an Aether profile's outbound only reaches its core on the loopback address; its dialMode is
+        // that of the exit-node its traffic leaves Xray by, see toOutboundAetherExit.
+        if (profileItem.configType != EConfigType.AETHER) applyDialMode(outbound, profileItem)
         applyTargetStrategy(outbound, profileItem)
         val ret = updateOutboundWithGlobalSettings(outbound)
         if (!ret) return null
@@ -50,8 +52,11 @@ object CoreOutboundBuilder {
      * Only the dialMode field is written, so sockopt options set elsewhere
      * (dialerProxy, domainStrategy, happyEyeballs, ...) are kept.
      */
-    internal fun applyDialMode(outbound: OutboundBean, profileItem: ProfileItem) {
-        val dialMode = profileItem.dialMode.nullIfBlank() ?: return
+    internal fun applyDialMode(outbound: OutboundBean, profileItem: ProfileItem) = applyDialMode(outbound, profileItem.dialMode)
+
+    /** [applyDialMode] with the dialMode itself, as the exit-node of an Aether core takes its profile's. */
+    internal fun applyDialMode(outbound: OutboundBean, mode: String?) {
+        val dialMode = mode.nullIfBlank() ?: return
         if (outbound.streamSettings == null) {
             // wireguard outbounds are built without streamSettings, but Xray still dials
             // their endpoint through the system dialer with streamSettings.sockopt.
@@ -243,12 +248,16 @@ object CoreOutboundBuilder {
         return outboundBean
     }
 
-    private fun toOutboundAether(): OutboundBean? {
+    /**
+     * A SOCKS outbound to the Aether core, on the port the app dials the core of the profile on. The
+     * core itself is named at the top of the configuration, as aetherCommand, once the configuration is built.
+     */
+    private fun toOutboundAether(profileItem: ProfileItem): OutboundBean? {
         val outboundBean = createInitOutbound(EConfigType.SOCKS)
 
         outboundBean?.settings?.let { settings ->
             settings.address = AppConfig.LOOPBACK
-            settings.port = AetherCoreManager.socksPort
+            settings.port = AetherCore.of(profileItem).port
         }
 
         return outboundBean
@@ -286,6 +295,22 @@ object CoreOutboundBuilder {
             ipv4Addresses.ifEmpty { listOf(AppConfig.WIREGUARD_LOCAL_ADDRESS_V4) }
         }
 
+        val rawDNS = profileItem.remoteDNS
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.ifEmpty { null }
+            ?: listOf(AppConfig.WIREGUARD_LOCAL_REMOTE_DNS)
+
+        val remotes = if (rawDNS.size == 1 && rawDNS[0] == "local") {
+            rawDNS
+        } else if (MmkvManager.decodeSettingsBool(AppConfig.PREF_IPV6_ENABLED) == true) {
+            rawDNS
+        } else {
+            val ipv4Dns = rawDNS.filter { !it.contains(":") }
+            ipv4Dns.ifEmpty { listOf(AppConfig.WIREGUARD_LOCAL_REMOTE_DNS) }
+        }
+
         outboundBean?.settings?.let { wireguard ->
             wireguard.secretKey = profileItem.secretKey
             wireguard.address = addresses
@@ -296,6 +321,7 @@ object CoreOutboundBuilder {
                 peer.endpoint = Utils.getIpv6Address(profileItem.server) + ":${profileItem.serverPort}"
             }
             wireguard.mtu = profileItem.mtu
+            wireguard.remoteDNS = remotes
             wireguard.reserved = profileItem.reserved?.takeIf { it.isNotBlank() }?.split(",")?.filter { it.isNotBlank() }?.map { it.trim().toInt() }
         }
 
@@ -563,6 +589,10 @@ object CoreOutboundBuilder {
         return sni
     }
 
+    /** PattNG: the protocols [alpn] names, comma-separated, as the TLS settings of an outbound offer them; empty for none. */
+    internal fun alpnProtocols(alpn: String?): List<String> =
+        alpn?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+
     /**
      * Configures TLS or REALITY security settings for an outbound connection.
      *
@@ -591,7 +621,7 @@ object CoreOutboundBuilder {
             allowInsecure = allowInsecure,
             serverName = sni.nullIfBlank(),
             fingerprint = profileItem.fingerPrint.nullIfBlank(),
-            alpn = profileItem.alpn?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }.takeIf { !it.isNullOrEmpty() },
+            alpn = alpnProtocols(profileItem.alpn).takeIf { it.isNotEmpty() },
             cipherSuites = profileItem.cipherSuites.nullIfBlank(),
             echConfigList = profileItem.echConfigList.nullIfBlank(),
             verifyPeerCertByName = profileItem.verifyPeerCertByName.nullIfBlank(),
@@ -604,6 +634,9 @@ object CoreOutboundBuilder {
         if (streamSettings.security == AppConfig.TLS) {
             streamSettings.tlsSettings = tlsSetting
             streamSettings.realitySettings = null
+            // PattNG: the ECH config query goes through the profile's ECH outbound, which
+            // EchOutbound.serialize checks, points echSockopt at and appends after every other outbound
+            tlsSetting.echOutbound = profileItem.echOutbound.nullIfBlank()
         } else if (streamSettings.security == AppConfig.REALITY) {
             streamSettings.tlsSettings = null
             streamSettings.realitySettings = tlsSetting
@@ -714,15 +747,35 @@ object CoreOutboundBuilder {
         return resolvedIps.first()
     }
 
-    fun updateOutboundFinalMask(streamSettings: OutboundBean.StreamSettingsBean, profileItem: ProfileItem) {
-        val finalMask = profileItem.finalMask
+    fun updateOutboundFinalMask(streamSettings: OutboundBean.StreamSettingsBean, profileItem: ProfileItem) =
+        updateOutboundFinalMask(streamSettings, profileItem.finalMask)
+
+    /** [updateOutboundFinalMask] with the finalMask JSON itself, as the exit-node of an Aether core takes its profile's. */
+    fun updateOutboundFinalMask(streamSettings: OutboundBean.StreamSettingsBean, finalMask: String?) {
         finalMask?.let {
-            val parsedFinalMask = JsonUtil.parseString(profileItem.finalMask)
+            val parsedFinalMask = JsonUtil.parseString(finalMask)
             if (parsedFinalMask != null) {
                 streamSettings.finalmask = parsedFinalMask
             } else {
                 LogUtil.w("V2rayConfigManager", "Invalid finalMask JSON, keeping previously generated finalmask")
             }
         }
+    }
+
+    /**
+     * PattNG: the exit-node of an Aether core, the freedom outbound that what the core dials out through
+     * leaves Xray by, with the finalMask and the dialMode of [exit] set as an ordinary profile sets them on
+     * its own outbound. The session's configuration carries it, and a core of its own dials out through it
+     * as well, see [AetherCoreManager.withProcess].
+     */
+    fun toOutboundAetherExit(exit: AetherExit): OutboundBean {
+        val outbound = OutboundBean(tag = AppConfig.TAG_EXIT_NODE, protocol = "freedom", mux = null)
+        if (!exit.finalMask.isNullOrBlank()) {
+            // A freedom outbound has no transport; the stream settings carry the mask alone.
+            outbound.streamSettings = OutboundBean.StreamSettingsBean(network = null)
+            updateOutboundFinalMask(outbound.streamSettings!!, exit.finalMask)
+        }
+        applyDialMode(outbound, exit.dialMode)
+        return outbound
     }
 }

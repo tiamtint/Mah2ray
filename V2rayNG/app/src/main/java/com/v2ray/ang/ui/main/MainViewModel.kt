@@ -137,8 +137,11 @@ class MainViewModel(
             is MainServiceEvent.StateStartFailure -> {
                 // The daemon attaches a reason only when it is a localized resource string, e.g.
                 // the Aether core stopping or missing on this ABI; the generic text is the fallback.
-                val reason = event.message.trim()
-                if (reason.isEmpty()) toastError(R.string.toast_services_failure) else toastError(reason)
+                if (!event.message.isNullOrBlank()) {
+                    toastError(event.message)
+                } else {
+                    toastError(R.string.toast_services_failure)
+                }
                 updateRunningState(false)
             }
 
@@ -186,6 +189,8 @@ class MainViewModel(
                     resetTestStatus()
                 }
             }
+
+            MainServiceEvent.ServersChanged -> setupGroupTab(forceRefresh = true)
         }
     }
 
@@ -281,6 +286,7 @@ class MainViewModel(
     fun onAction(action: MainAction) {
         when (action) {
             MainAction.Initialize -> initialize()
+            MainAction.RefreshServiceState -> dataSource.queryServiceState()
             MainAction.RefreshGroups -> setupGroupTab(forceRefresh = true)
             MainAction.TestAllServers -> testAllRealPing(true)
             MainAction.TestRealAllServers -> testAllRealPing()

@@ -1,8 +1,8 @@
 package com.v2ray.ang.ui.main
 
 import com.v2ray.ang.dto.ConnectionTestResult
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 
 class MainViewModelStatusTest {
 
@@ -43,6 +43,23 @@ class MainViewModelStatusTest {
         assertEquals(
             MainStatus.Disconnected,
             MainViewModel.runningStatus(connecting, wasRunning = false, running = false, clearTestingText = false)
+        )
+    }
+
+    @Test
+    fun aServiceFoundGoneOnAStateQueryEndsWhateverTheScreenWasLeftShowing() {
+        // The query nobody acknowledged arrives as a plain "not running" signal, without clearing test text.
+        val left = listOf(MainStatus.Connected, connecting, MainStatus.TestProgress("3 / 10"))
+        for (status in left) {
+            assertEquals(
+                MainStatus.Disconnected,
+                MainViewModel.runningStatus(status, wasRunning = true, running = false, clearTestingText = false)
+            )
+        }
+        // A screen that already shows a stopped service keeps what it shows.
+        assertEquals(
+            MainStatus.Disconnected,
+            MainViewModel.runningStatus(MainStatus.Disconnected, wasRunning = false, running = false, clearTestingText = false)
         )
     }
 }

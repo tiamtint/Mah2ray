@@ -98,6 +98,12 @@ class MainActivity : HelperBaseComponentActivity() {
         checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {}
     }
 
+    override fun onStart() {
+        super.onStart()
+        // The service can have gone away while the screen was not shown, without a word if its process died.
+        mainViewModel.onAction(MainAction.RefreshServiceState)
+    }
+
     @Composable
     override fun ScreenContent() {
         BackHandler { moveTaskToBack(false) }
@@ -162,6 +168,9 @@ class MainActivity : HelperBaseComponentActivity() {
     private fun handleFabAction() {
         if (mainViewModel.uiState.value.isRunning) {
             LauncherManager.stopService(this)
+            // A service whose process died takes no stop and answers nothing; asking for its state right
+            // after lets that silence show the screen as stopped instead of leaving it connected.
+            mainViewModel.onAction(MainAction.RefreshServiceState)
         } else {
             requestServiceStart()
         }
@@ -187,8 +196,7 @@ class MainActivity : HelperBaseComponentActivity() {
             toast(R.string.title_file_chooser)
             return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN &&
-            MmkvManager.decodeSettingsBool(AppConfig.PREF_PROXY_SHARING)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN
         ) {
             checkAndRequestPermission(PermissionType.ACCESS_LOCAL_NETWORK) {}
         }

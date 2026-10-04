@@ -1,15 +1,12 @@
 package com.v2ray.ang.handler
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
@@ -17,6 +14,7 @@ import com.v2ray.ang.core.CoreServiceManager
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.extension.delay
 import com.v2ray.ang.extension.toSpeedString
+import com.v2ray.ang.helper.NotificationHelper
 import com.v2ray.ang.ui.main.MainActivity
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CoroutineScope
@@ -104,14 +102,7 @@ object NotificationManager {
         restartV2RayIntent.putExtra("key", AppConfig.MSG_STATE_RESTART)
         val restartV2RayPendingIntent = PendingIntent.getBroadcast(service, NOTIFICATION_PENDING_INTENT_RESTART_V2RAY, restartV2RayIntent, flags)
 
-        val channelId =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                createNotificationChannel()
-            } else {
-                // If earlier version channel ID is not used
-                // https://developer.android.com/reference/android/support/v4/app/NotificationCompat.Builder.html#NotificationCompat.Builder(android.content.Context)
-                ""
-            }
+        val channelId = createNotificationChannel()
 
         mBuilder = NotificationCompat.Builder(service, channelId)
             .setSmallIcon(R.drawable.ic_stat_name)
@@ -149,17 +140,21 @@ object NotificationManager {
     }
 
     /**
-     * Cancels the notification.
+     * Cancels the notification. Leaving the foreground removes the notification a service holds
+     * there, but the proxy-only and the root service tear down in onDestroy, when stopSelf() has
+     * already taken them out of the foreground: whatever was posted since is an ordinary
+     * notification, and it is cancelled by its id.
      */
     fun cancelNotification() {
         val service = getService() ?: return
+        speedNotificationJob?.cancel()
+        speedNotificationJob = null
         service.stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        getNotificationManager()?.cancel(NOTIFICATION_ID)
 
         mBuilder = null
         statusLine = null
         lastContentText = null
-        speedNotificationJob?.cancel()
-        speedNotificationJob = null
         mNotificationManager = null
     }
 
@@ -175,18 +170,22 @@ object NotificationManager {
     }
 
     /**
-     * Creates a notification channel for Android O and above.
+     * Creates the notification channel.
      * @return The channel ID.
      */
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel(): String {
         val channelId = AppConfig.RAY_NG_CHANNEL_ID
-        val channelName = AppConfig.RAY_NG_CHANNEL_NAME
-        // Foreground-service notifications must remain visible; LOW is silent but valid.
-        val chan = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
-        chan.lightColor = Color.DKGRAY
-        chan.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
-        getNotificationManager()?.createNotificationChannel(chan)
+        val service = getService() ?: return channelId
+        NotificationHelper.ensureNotificationChannel(
+            context = service,
+            channelId = channelId,
+            channelNameRes = R.string.notification_channel_service,
+            // Foreground-service notifications must remain visible; LOW is silent but valid.
+            importance = NotificationManager.IMPORTANCE_LOW,
+        ) {
+            lightColor = Color.DKGRAY
+            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        }
         return channelId
     }
 
@@ -197,20 +196,20 @@ object NotificationManager {
      * @param directTraffic The direct traffic.
      */
     private fun updateNotification(contentText: String?, proxyTraffic: Long, directTraffic: Long) {
-        if (mBuilder != null) {
-            if (proxyTraffic < NOTIFICATION_ICON_THRESHOLD && directTraffic < NOTIFICATION_ICON_THRESHOLD) {
-                mBuilder?.setSmallIcon(R.drawable.ic_stat_name)
-            } else if (proxyTraffic > directTraffic) {
-                mBuilder?.setSmallIcon(R.drawable.ic_stat_proxy)
-            } else {
-                mBuilder?.setSmallIcon(R.drawable.ic_stat_direct)
-            }
-            lastContentText = contentText
-            val content = composeContentText()
-            mBuilder?.setStyle(NotificationCompat.BigTextStyle().bigText(content))
-            mBuilder?.setContentText(content)
-            getNotificationManager()?.notify(NOTIFICATION_ID, mBuilder?.build())
+        // Taken once: the speed job runs on its own thread, and a stop clears the builder meanwhile.
+        val builder = mBuilder ?: return
+        if (proxyTraffic < NOTIFICATION_ICON_THRESHOLD && directTraffic < NOTIFICATION_ICON_THRESHOLD) {
+            builder.setSmallIcon(R.drawable.ic_stat_name)
+        } else if (proxyTraffic > directTraffic) {
+            builder.setSmallIcon(R.drawable.ic_stat_proxy)
+        } else {
+            builder.setSmallIcon(R.drawable.ic_stat_direct)
         }
+        lastContentText = contentText
+        val content = composeContentText()
+        builder.setStyle(NotificationCompat.BigTextStyle().bigText(content))
+        builder.setContentText(content)
+        getNotificationManager()?.notify(NOTIFICATION_ID, builder.build())
     }
 
     /**
@@ -267,6 +266,9 @@ object NotificationManager {
 
         CoreServiceManager.queryAllOutboundTrafficStats().forEach { stat ->
             when {
+                // PattNG: the Aether core's tunnel, the traffic of the outbound that dials it a second time.
+                stat.tag == AppConfig.TAG_EXIT_NODE -> Unit
+
                 stat.tag == AppConfig.TAG_DIRECT -> {
                     when (stat.direction) {
                         AppConfig.UPLINK -> directUplink += stat.value
