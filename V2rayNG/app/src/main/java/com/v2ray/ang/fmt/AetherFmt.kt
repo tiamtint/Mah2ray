@@ -3,6 +3,7 @@ package com.v2ray.ang.fmt
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.CoreOutboundBuilder
 import com.v2ray.ang.dto.AetherEndpoint
 import com.v2ray.ang.dto.AetherRange
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -27,6 +28,7 @@ import java.util.Locale
 object AetherFmt : FmtBase() {
 
     enum class Problem {
+        INVALID_MASQUE_SNI,
         INVALID_PEER,
         INVALID_HOP,
         SHARED_HOP,
@@ -54,6 +56,8 @@ object AetherFmt : FmtBase() {
         config.remarks = Utils.decodeURIComponent(uri.fragment.orEmpty()).ifEmpty { "Aether" }
         config.aetherProtocol = protocol.type
         config.aetherTransport = AetherTransport.fromString(queryParam["transport"]).type
+        // A name the core would not take is left out; the profile then follows the default.
+        config.aetherMasqueSni = queryParam["sni"]?.trim()?.takeIf { protocol.overMasque && isMasqueSni(it) }
         config.aetherScanMode = AetherScanMode.fromString(queryParam["scan"]).type
         config.aetherObfuscation = AetherObfuscation.fromString(queryParam["noize"]).type
         config.aetherIpVersion = AetherIpVersion.fromString(queryParam["ip"]).type
@@ -85,7 +89,7 @@ object AetherFmt : FmtBase() {
 
         if (protocol.twoHops) {
             val outer = AetherEndpoint.parse(queryParam["outer"])
-            val inner = AetherEndpoint.parse(queryParam["inner"])?.takeUnless { it.host == outer?.host }
+            val inner = AetherEndpoint.parse(queryParam["inner"])?.takeUnless { protocol.distinctHops && it.host == outer?.host }
             config.aetherWiwOuter = outer?.toString()
             config.aetherWiwInner = inner?.toString()
         } else {
@@ -118,6 +122,9 @@ object AetherFmt : FmtBase() {
         config.aetherExitLoc?.takeIf { it.isNotBlank() }?.let { query["exit_loc"] = it }
         if (protocol.overMasque) {
             query["transport"] = AetherTransport.fromString(config.aetherTransport).type
+            // The default needs no word, and a name the core would not take goes nowhere.
+            config.aetherMasqueSni?.trim()?.takeIf { it != AppConfig.AETHER_MASQUE_SNI && isMasqueSni(it) }
+                ?.let { query["sni"] = it }
             if (config.aetherFragment == true) {
                 query["fragment"] = "1"
                 AetherRange.parse(config.aetherFragmentSize, AetherRange.FRAGMENT_SIZE)
@@ -170,27 +177,28 @@ object AetherFmt : FmtBase() {
 
     /**
      * [takenPorts] are loopback ports something else of the app listens on, the local proxy above
-     * all; the core of the profile cannot listen there as well.
+     * all; the core of the profile cannot listen there as well. [listenPort] is the Aether listen
+     * port of the settings, read from storage unless a screen passes the one it holds.
      */
-    fun normalize(config: ProfileItem, takenPorts: Set<Int> = emptySet()): Problem? =
-        normalizeFragment(config)
+    fun normalize(config: ProfileItem, takenPorts: Set<Int> = emptySet(), listenPort: Int = AetherCoreManager.socksPort): Problem? =
+        normalizeMasqueSni(config)
+            ?: normalizeFragment(config)
             ?: normalizeEndpoints(config)
             ?: normalizeDns(config)
             ?: normalizeExitLoc(config)
             ?: normalizeEch(config)
             ?: normalizePsiphon(config)
             ?: normalizeTor(config)
-            ?: normalizeListenPort(config, takenPorts)
-            ?: normalizeCommand(config, takenPorts)
+            ?: normalizeListenPort(config, takenPorts, listenPort)
+            ?: normalizeCommand(config, takenPorts, listenPort)
 
     /**
      * The core of a profile built from its settings listens on the Aether listen port of the settings,
      * the one port of every such core, which the local proxy may have been moved onto. A command
      * written by hand names its own ports, which [normalizeCommand] checks.
      */
-    private fun normalizeListenPort(config: ProfileItem, takenPorts: Set<Int>): Problem? {
+    private fun normalizeListenPort(config: ProfileItem, takenPorts: Set<Int>, listen: Int): Problem? {
         if (!config.aetherCommand.isNullOrBlank()) return null
-        val listen = AetherCoreManager.socksPort
         if (listen in takenPorts) return Problem.LISTEN_PORT_TAKEN
         // Psiphon inside the tunnel, Tor inside it and Tor around it each take one more port after the
         // one the app dials, as AetherCoreManager.buildArguments hands them out.
@@ -306,6 +314,32 @@ object AetherFmt : FmtBase() {
 
     private val echDomainLabel = Regex("[A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?")
 
+    /**
+     * The server name the MASQUE handshakes put in their ClientHello, as the core reads it: left out when it is the
+     * default, so that a profile follows the default, and otherwise kept as written whatever the protocol, as the ECH
+     * settings are. It is refused only while a MASQUE tunnel takes it, over MASQUE with a WARP tunnel; one the core
+     * would not take waits there, out of use, as one of the ECH settings does.
+     */
+    private fun normalizeMasqueSni(config: ProfileItem): Problem? {
+        val name = config.aetherMasqueSni?.trim().orEmpty()
+        val inUse = AetherProtocol.fromString(config.aetherProtocol).overMasque &&
+            AetherPsiphon.fromString(config.aetherPsiphon) != AetherPsiphon.ONLY &&
+            AetherTor.fromString(config.aetherTor) != AetherTor.ONLY
+        if (inUse && name.isNotEmpty() && !isMasqueSni(name)) return Problem.INVALID_MASQUE_SNI
+        config.aetherMasqueSni = name.takeUnless { it.isEmpty() || it == AppConfig.AETHER_MASQUE_SNI }
+        return null
+    }
+
+    /**
+     * Whether [value] is a server name the core's --masque-sni takes, which it checks as it starts: a domain name, with
+     * a trailing dot or without, and no IP address, which the core's parser reads as Go's netip does, see
+     * [CoreOutboundBuilder.isNetipAddress]. A label cannot start or end with '-' either, as for [isEchDomain].
+     */
+    internal fun isMasqueSni(value: String): Boolean {
+        val name = value.removeSuffix(".")
+        return !name.endsWith('.') && !CoreOutboundBuilder.isNetipAddress(name) && isEchDomain(name)
+    }
+
     private fun normalizePsiphon(config: ProfileItem): Problem? {
         val psiphon = AetherPsiphon.fromString(config.aetherPsiphon)
         if (psiphon == AetherPsiphon.OFF) {
@@ -318,7 +352,8 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonBundledList = null
             return null
         }
-        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
+        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair. WireGuard over
+        // MASQUE goes, as its WireGuard rides inside the MASQUE tunnel.
         if (psiphon == AetherPsiphon.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
             return Problem.PSIPHON_NEEDS_MASQUE
         }
@@ -342,7 +377,8 @@ object AetherFmt : FmtBase() {
             config.aetherTorRelays = null
             return null
         }
-        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
+        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair. WireGuard over
+        // MASQUE goes, as its WireGuard rides inside the MASQUE tunnel.
         if (tor == AetherTor.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
             return Problem.TOR_NEEDS_MASQUE
         }
@@ -379,11 +415,11 @@ object AetherFmt : FmtBase() {
         text?.split(Regex("[,\\s]+"))?.filter { it.isNotEmpty() }?.joinToString(",")?.ifEmpty { null }
 
     /** A command written in place of the settings has to be one the app can run, on ports nothing else of the app holds. */
-    private fun normalizeCommand(config: ProfileItem, takenPorts: Set<Int>): Problem? {
+    private fun normalizeCommand(config: ProfileItem, takenPorts: Set<Int>, listenPort: Int): Problem? {
         val text = config.aetherCommand?.trim().orEmpty()
         config.aetherCommand = text.ifEmpty { null }
         if (text.isEmpty()) return null
-        val core = AetherCore.ofCommand(text) ?: return Problem.INVALID_COMMAND
+        val core = AetherCore.ofCommand(text, listenPort) ?: return Problem.INVALID_COMMAND
         return if (core.ports.any { it in takenPorts }) Problem.LISTEN_PORT_TAKEN else null
     }
 
@@ -404,7 +440,8 @@ object AetherFmt : FmtBase() {
     }
 
     private fun normalizeEndpoints(config: ProfileItem): Problem? {
-        if (AetherProtocol.fromString(config.aetherProtocol).twoHops) {
+        val protocol = AetherProtocol.fromString(config.aetherProtocol)
+        if (protocol.twoHops) {
             val outerText = config.aetherWiwOuter?.trim().orEmpty()
             val innerText = config.aetherWiwInner?.trim().orEmpty()
             val outer = AetherEndpoint.parse(outerText)
@@ -412,7 +449,7 @@ object AetherFmt : FmtBase() {
             if (outerText.isNotEmpty() && outer == null || innerText.isNotEmpty() && inner == null) {
                 return Problem.INVALID_HOP
             }
-            if (outer != null && inner != null && outer.host == inner.host) {
+            if (protocol.distinctHops && outer != null && inner != null && outer.host == inner.host) {
                 return Problem.SHARED_HOP
             }
             config.aetherWiwOuter = outer?.toString()

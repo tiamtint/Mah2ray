@@ -1,5 +1,6 @@
 package com.v2ray.ang.core
 
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.security.MessageDigest
 
 class AetherCoreTest {
 
@@ -76,6 +78,84 @@ class AetherCoreTest {
         val mim = AetherCore.of(profile { aetherProtocol = AetherProtocol.MIM.type; aetherWiwInner = "188.114.96.1:443" })
         assertEquals(mim, AetherCore.ofCommand(mim.command))
         assertEquals(AetherProtocol.MIM, AetherCore.ofCommand(mim.command)!!.protocol)
+
+        val goolOverMasque = AetherCore.of(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherWiwInner = "162.159.192.1:2408" })
+        assertEquals(goolOverMasque, AetherCore.ofCommand(goolOverMasque.command))
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCore.ofCommand(goolOverMasque.command)!!.protocol)
+    }
+
+    @Test
+    fun aProfileNamedAsTheExitNodeTakesThePlaceOfFreedom() {
+        val masked = profile { finalMask = """{"tcp": []}"""; dialMode = "code-1" }
+        assertEquals(AetherExit("""{"tcp": []}""", "code-1"), AetherExit.of(masked))
+        // With a node, the finalMask and the dialMode are out of use.
+        val noded = masked.copy(aetherExitNode = " germany ")
+        assertEquals(AetherExit(node = "germany"), AetherExit.of(noded))
+        assertEquals(AetherExit(node = "germany"), AetherCore.of(noded).exit)
+        assertEquals(AetherCore.of(masked).arguments, AetherCore.of(noded).arguments)
+        assertEquals(AetherExit.of(masked), AetherExit.of(masked.copy(aetherExitNode = " ")))
+        // The node tells exits apart.
+        assertNotEquals(AetherExit.PLAIN.key, AetherExit(node = "germany").key)
+        assertNotEquals(AetherExit(node = "germany").key, AetherExit(node = "france").key)
+        // The key of an exit without one is what it was before nodes.
+        fun digest(text: String) =
+            MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        assertEquals(digest("\u0000code-1\u0000"), AetherExit(dialMode = "code-1").key)
+        assertEquals(digest("\u0000\u0000hops"), AetherExit(hops = "hops").key)
+    }
+
+    @Test
+    fun theKeyOfAnExitNodeTellsAChangedProfileOfTheSameName() {
+        val germany = ProfileItem.create(EConfigType.VLESS).apply { remarks = "germany"; server = "203.0.113.7"; serverPort = "443" }
+        // A subscription's update gives the profile of the name another server, and a new guid the content does not hold.
+        val updated = germany.copy(server = "203.0.113.8")
+        val node = AetherExit(node = "germany")
+        fun found(profile: ProfileItem) = { name: String -> if (name == "germany") ByName.One(profile) else ByName.None }
+
+        val atStart = node.withNodeContent(found(germany))
+        assertEquals(AetherExit.contentOf(germany), atStart.nodeContent)
+        assertEquals(atStart.key, node.withNodeContent(found(germany.copy())).key)
+        assertNotEquals(atStart.key, node.withNodeContent(found(updated)).key)
+        assertNotEquals(atStart.key, node.key)
+        // A name no profile, or several, have any more gives none, and the key without it differs as well.
+        assertEquals(node, node.withNodeContent { ByName.None })
+        assertEquals(node, node.withNodeContent { ByName.Several })
+        // Without a node there is nothing to look up, and the key stays what it was.
+        assertEquals(AetherExit.PLAIN, AetherExit.PLAIN.withNodeContent { error("no node to look up") })
+        // The digest holds no secret of the profile.
+        assertFalse(atStart.key.contains("203.0.113.7"))
+        assertFalse(atStart.nodeContent!!.contains("203.0.113.7"))
+    }
+
+    @Test
+    fun anyProfileAChainTakesForAHopCanBeTheExitNodeButAnAetherOne() {
+        for (type in listOf(EConfigType.VMESS, EConfigType.VLESS, EConfigType.TROJAN, EConfigType.SHADOWSOCKS, EConfigType.SOCKS, EConfigType.HTTP, EConfigType.WIREGUARD, EConfigType.HYSTERIA2)) {
+            assertTrue(AetherExit.takesAsNode(ProfileItem.create(type)), type.name)
+        }
+        for (type in listOf(EConfigType.AETHER, EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)) {
+            assertFalse(AetherExit.takesAsNode(ProfileItem.create(type)), type.name)
+        }
+    }
+
+    @Test
+    fun theNamesOfTheProfilesThatCanBeTheExitNodeAreListedOnceWithHowManyHaveThem() {
+        fun named(type: EConfigType, name: String) = ProfileItem.create(type).apply { remarks = name }
+        val profiles = sequenceOf(
+            named(EConfigType.VLESS, " germany "),
+            named(EConfigType.TROJAN, "france"),
+            named(EConfigType.VMESS, "germany"),
+            // An Aether profile, or a group, has a name no exit-node is found by.
+            named(EConfigType.AETHER, "france"),
+            named(EConfigType.POLICYGROUP, "spain"),
+            // Nothing names a profile without a name.
+            named(EConfigType.SOCKS, "  "),
+            named(EConfigType.HTTP, "italy"),
+        )
+        assertEquals(
+            listOf(AetherExitNode("germany", 2), AetherExitNode("france", 1), AetherExitNode("italy", 1)),
+            AetherExit.nodesOf(profiles),
+        )
+        assertEquals(emptyList<AetherExitNode>(), AetherExit.nodesOf(emptySequence()))
     }
 
     @Test
@@ -84,7 +164,9 @@ class AetherCoreTest {
         val core = AetherCore.ofCommand("aether --gool --scan balanced --bind 127.0.0.1:20808 --dns 1.1.1.1")!!
         assertEquals(listOf("--gool", "--scan", "balanced", "--bind", "127.0.0.1:20808", "--dns", "1.1.1.1"), core.arguments)
         assertEquals(20808, core.port)
-        assertEquals(AetherProtocol.GOOL, core.protocol)
+        // Gool is WireGuard over MASQUE to the core, unless something makes it the classic gool.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, core.protocol)
+        assertEquals(AetherProtocol.GOOL, AetherCore.ofCommand("aether --gool --gool-classic --bind 127.0.0.1:20808")!!.protocol)
     }
 
     @Test
@@ -216,7 +298,8 @@ class AetherCoreTest {
         assertEquals(listOf("WIREGUARD", "PSIPHON"), AetherCore.of(pinned.copy(aetherPsiphon = "chain")).path)
         assertEquals(listOf("PSIPHON"), AetherCore.of(pinned.copy(aetherPsiphon = "only")).path)
         assertEquals(listOf("TOR", "MASQUE"), AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherTor = "reverse")).path)
-        assertEquals(listOf("GOOL", "TOR"), AetherCore.ofCommand("aether --gool --tor")!!.path)
+        assertEquals(listOf("WG_OVER_MASQUE", "TOR"), AetherCore.ofCommand("aether --gool --tor")!!.path)
+        assertEquals(listOf("GOOL", "TOR"), AetherCore.ofCommand("aether --gool-classic --tor")!!.path)
     }
 
     @Test
@@ -260,6 +343,19 @@ class AetherCoreTest {
             assertEquals(20811, AetherCoreManager.secondarySocksPort)
             assertEquals(listOf(20808, 20809, 20810), AetherCore.of(most).ports.sorted())
         }
+    }
+
+    @Test
+    fun anUpdateThatLeavesAProfileAsItWasLeavesItsDigestAsItWas() {
+        // A subscription's update builds every profile again, added anew, and may move it to another subscription or
+        // describe it anew; what it connects with is what tells an exit-node, or the hops of a chain, apart.
+        val germany = ProfileItem.create(EConfigType.VLESS).apply { remarks = "germany"; server = "203.0.113.7"; serverPort = "443"; password = "uuid" }
+        val renewed = germany.copy(addedTime = germany.addedTime + 60_000, subscriptionId = "sub", description = "renewed", configVersion = 5)
+
+        assertEquals(AetherExit.contentOf(germany), AetherExit.contentOf(renewed))
+        assertEquals(AetherExit.through(listOf(germany)), AetherExit.through(listOf(renewed)))
+        assertNotEquals(AetherExit.contentOf(germany), AetherExit.contentOf(germany.copy(serverPort = "8443")))
+        assertNotEquals(AetherExit.through(listOf(germany)), AetherExit.through(listOf(germany.copy(password = "another"))))
     }
 
     @Test
@@ -307,5 +403,18 @@ class AetherCoreTest {
         assertEquals(AetherExit.PLAIN, AetherCore.ofCommand(core.command)!!.exit)
         // Dialling out through Xray keeps its exit-node.
         assertEquals(core.exit, core.through(41236).exit)
+    }
+
+    @Test
+    fun aCommandNamingNoListenerGetsOneOnTheListenPortGiven() {
+        onListenPort(10819) {
+            assertEquals(20808, AetherCore.ofCommand("aether --wg", 20808)!!.port)
+            assertEquals(20808, AetherCore.of(profile { aetherCommand = "aether --wg" }, 20808).port)
+            // Without one, on the port of the settings, as before.
+            assertEquals(10819, AetherCore.ofCommand("aether --wg")!!.port)
+            assertEquals(10819, AetherCore.of(profile { aetherCommand = "aether --wg" }).port)
+            // A listener the command names stays.
+            assertEquals(30808, AetherCore.of(profile { aetherCommand = "aether --wg --bind 127.0.0.1:30808" }, 20808).port)
+        }
     }
 }

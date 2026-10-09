@@ -3,14 +3,20 @@ package com.v2ray.ang.ui.server
 import android.content.Context
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.AetherExit
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.core.AetherScanner
+import com.v2ray.ang.core.CoreOutboundBuilder
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.core.PsiphonServerList
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.fmt.AetherFmt
+import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +63,18 @@ interface AetherEditorSource {
 
     /** The Aether listen port of the settings, which every core of a profile listens on. */
     suspend fun listenPort(): Int
+
+    /**
+     * The loopback ports the core of a profile cannot listen on, see [AetherFmt.normalize]: the local proxy's, and the
+     * port of the inbound the core dials out through.
+     */
+    suspend fun takenPorts(): Set<Int>
+
+    /** The names of the profiles a core can dial out through in place of freedom, see [AetherExit.nodes]. */
+    suspend fun exitNodes(): List<AetherExitNode>
+
+    /** What the profile named [name] gives as the exit-node now, see [CoreOutboundBuilder.toOutboundOfNode]. */
+    suspend fun findExitNode(name: String): ExitNodeOutbound
 }
 
 class AetherEditorRepository(private val context: Context) : AetherEditorSource {
@@ -103,6 +121,14 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
     }
 
     override suspend fun listenPort(): Int = withContext(Dispatchers.IO) { AetherCoreManager.socksPort }
+
+    override suspend fun takenPorts(): Set<Int> =
+        withContext(Dispatchers.IO) { SettingsManager.getLocalProxyPorts() + AetherCoreManager.secondarySocksPort }
+
+    override suspend fun exitNodes(): List<AetherExitNode> = withContext(Dispatchers.IO) { AetherExit.nodes() }
+
+    override suspend fun findExitNode(name: String): ExitNodeOutbound =
+        withContext(Dispatchers.IO) { CoreOutboundBuilder.toOutboundOfNode(name) }
 
     override suspend fun psiphonRegions(): List<String> = withContext(Dispatchers.IO) {
         val entries = PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), AetherIdentityManager.workDir(context)) { problem ->

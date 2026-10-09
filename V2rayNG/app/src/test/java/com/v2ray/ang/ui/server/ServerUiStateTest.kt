@@ -6,11 +6,15 @@ import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.fmt.AetherFmt
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -63,14 +67,91 @@ class ServerUiStateTest {
         val profile = ProfileItem.create(EConfigType.VLESS)
 
         val untouched = ServerUiState.from(profile)
-        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, untouched.targetStrategy)
+        // None is chosen while the profile follows its default, which the screen shows.
+        assertEquals("", untouched.targetStrategy)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, untouched.shownTargetStrategy)
         assertNull(untouched.toProfileItem(profile).targetStrategy)
 
         untouched.targetStrategy = "UseIPv4v6"
+        assertEquals("UseIPv4v6", untouched.shownTargetStrategy)
         assertEquals("UseIPv4v6", untouched.toProfileItem(profile).targetStrategy)
 
         val stored = ServerUiState.from(ProfileItem.create(EConfigType.AETHER).apply { targetStrategy = "ForceIP" })
         assertEquals("ForceIP", stored.targetStrategy)
+    }
+
+    @Test
+    fun anAetherProfileThroughWarpDefaultsToForceIPv4v6AndAWireguardOneToAsIs() {
+        val aether = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(aether)
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.shownTargetStrategy)
+        // The default, chosen, is stored as none, so that the profile follows it.
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertNull(state.toProfileItem(aether).targetStrategy)
+        // AsIs is not its default, so it is stored as it is, and read back so.
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        val asIs = state.toProfileItem(aether)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, asIs.targetStrategy)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, ServerUiState.from(asIs).shownTargetStrategy)
+
+        // A WireGuard tunnel looks names up itself, with the profile's own DNS: it passes them on as they are.
+        val wireguard = ProfileItem.create(EConfigType.WIREGUARD)
+        val wireguardState = ServerUiState.from(wireguard)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, wireguardState.shownTargetStrategy)
+        assertNull(wireguardState.toProfileItem(wireguard).targetStrategy)
+        wireguardState.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, wireguardState.toProfileItem(wireguard).targetStrategy)
+        // One that stored AsIs while ForceIPv4v6 was the default of its type follows its default, AsIs, once saved again.
+        val storedAsIs = wireguard.copy(targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS)
+        assertNull(ServerUiState.from(storedAsIs).toProfileItem(storedAsIs).targetStrategy)
+    }
+
+    @Test
+    fun anAetherProfilesDefaultFollowsWhereTorAndPsiphonStandOnTheScreen() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+
+        // Inside the tunnel, or alone, Tor and Psiphon carry the traffic last and look names up at their exit.
+        for (tor in listOf(AetherTor.CHAIN, AetherTor.ONLY)) {
+            state.aetherTor = tor.type
+            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, state.shownTargetStrategy, tor.name)
+            assertNull(state.toProfileItem(profile).targetStrategy, tor.name)
+        }
+        // Around the tunnel, they leave the traffic to WARP.
+        state.aetherTor = AetherTor.REVERSE.type
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.shownTargetStrategy)
+        state.aetherTor = AetherTor.OFF.type
+        for (psiphon in listOf(AetherPsiphon.CHAIN, AetherPsiphon.ONLY)) {
+            state.aetherPsiphon = psiphon.type
+            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, state.shownTargetStrategy, psiphon.name)
+        }
+        state.aetherPsiphon = AetherPsiphon.REVERSE.type
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.shownTargetStrategy)
+
+        // A choice is weighed against the default of the profile as it is saved: on one whose traffic leaves through
+        // Tor, ForceIPv4v6 is stored, and AsIs is not.
+        state.aetherPsiphon = AetherPsiphon.OFF.type
+        state.aetherTor = AetherTor.CHAIN.type
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.toProfileItem(profile).targetStrategy)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        assertNull(state.toProfileItem(profile).targetStrategy)
+    }
+
+    @Test
+    fun aCommandOfItsOwnSaysWhereAnAetherProfilesTrafficLeaves() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        val built = com.v2ray.ang.core.AetherCore.of(state.toProfileItem(profile, 20808), 20808).command
+
+        // The settings leave through WARP, the command through Tor; the command runs, so the traffic leaves through Tor.
+        state.aetherCommand = "$built --tor"
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, state.shownTargetStrategy)
+        val stored = state.toProfileItem(profile, 20808)
+        assertEquals("$built --tor", stored.aetherCommand)
+        assertNull(stored.targetStrategy)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.toProfileItem(profile, 20808).targetStrategy)
     }
 
     @Test
@@ -183,6 +264,25 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun theExitNodeIsTheNameOfAProfileAndIsStoredOnlyWhenOneIsChosen() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        assertEquals("", state.aetherExitNode)
+        assertNull(state.toProfileItem(profile).aetherExitNode)
+
+        state.aetherExitNode = "germany"
+        val chosen = state.toProfileItem(profile)
+        assertEquals("germany", chosen.aetherExitNode)
+        assertEquals("germany", ServerUiState.from(chosen).aetherExitNode)
+        // The finalMask and the dialMode set before are kept, out of use, for freedom again.
+        state.finalMask = """{"tcp": []}"""
+        assertEquals("""{"tcp": []}""", state.toProfileItem(profile).finalMask)
+        // No other type of profile has one.
+        state.configType = EConfigType.VLESS
+        assertNull(state.toProfileItem(profile).aetherExitNode)
+    }
+
+    @Test
     fun theCdnSetsAreChosenOneByOneAndStoredInTheOrderTheCoreTriesThem() {
         val blank = ProfileItem.create(EConfigType.AETHER)
         val state = ServerUiState.from(blank.apply { aetherPsiphon = "chain" })
@@ -223,6 +323,17 @@ class ServerUiStateTest {
         state.aetherExitLoc = ""
         state.targetStrategy = "UseIPv4v6"
         assertEquals(true, state.hasOtherAetherSettings)
+        // AsIs is no default of Aether's: it counts as a setting of its own.
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        assertEquals(true, state.hasOtherAetherSettings)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(false, state.hasOtherAetherSettings)
+        // Where Tor carries the traffic last, AsIs is the default, and ForceIPv4v6 a setting of its own.
+        state.aetherTor = AetherTor.CHAIN.type
+        assertEquals(true, state.hasOtherAetherSettings)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        assertEquals(false, state.hasOtherAetherSettings)
+        state.aetherTor = AetherTor.OFF.type
         state.targetStrategy = ""
         // The exit-node's finalMask and dialMode stand outside the fold, after the fingerprint.
         state.finalMask = """{"tcp": []}"""
@@ -271,6 +382,30 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun theMasqueServerNameStartsAtWwwCloudflareComAndIsKeptWhateverTheProtocol() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        // Shown filled in, before anything is set.
+        assertEquals("www.cloudflare.com", state.aetherMasqueSni)
+
+        state.aetherMasqueSni = "consumer-masque.cloudflareclient.com"
+        for (protocol in AetherProtocol.entries) {
+            state.aetherProtocol = protocol.type
+            val stored = state.toProfileItem(profile)
+            assertEquals("consumer-masque.cloudflareclient.com", stored.aetherMasqueSni, protocol.type)
+            assertEquals("consumer-masque.cloudflareclient.com", ServerUiState.from(stored).aetherMasqueSni, protocol.type)
+        }
+
+        // A field left empty is the default again.
+        state.aetherMasqueSni = " "
+        assertNull(state.toProfileItem(profile).aetherMasqueSni)
+        assertEquals("www.cloudflare.com", ServerUiState.from(state.toProfileItem(profile)).aetherMasqueSni)
+        // Only an Aether profile carries one.
+        val vless = ServerUiState.from(ProfileItem.create(EConfigType.VLESS))
+        assertNull(vless.toProfileItem(ProfileItem.create(EConfigType.VLESS)).aetherMasqueSni)
+    }
+
+    @Test
     fun aCommandIsStoredOnlyWhenItSaysMoreThanTheSettings() {
         val profile = ProfileItem.create(EConfigType.AETHER)
         val state = ServerUiState.from(profile)
@@ -299,5 +434,37 @@ class ServerUiStateTest {
         assertNull(state.toProfileItem(profile, 20808).aetherCommand)
         // On another port the same words say something else than the settings do.
         assertEquals(built, state.toProfileItem(profile, 10819).aetherCommand)
+    }
+
+    @Test
+    fun theProfileTheEditorHoldsIsBuiltAgainEqualWhileItsChecksNormalizeACopy() {
+        val initial = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(initial)
+        val held = state.toProfileItem(initial, 20808)
+        val checked = held.copy()
+
+        assertNull(AetherFmt.normalize(checked))
+        // Normalized, the default ECH resolver and domain are left out: the profile checked is not the one held, so the
+        // screen weighs the one it holds, which the outcome of the check carries.
+        assertNotEquals(held, checked)
+        assertEquals(AppConfig.AETHER_ECH_DNS, held.aetherEchDns)
+        // Built again from the same screen it is equal, and not once the screen is edited.
+        assertEquals(held, state.toProfileItem(initial, 20808))
+        state.remarks = "edited"
+        assertNotEquals(held, state.toProfileItem(initial, 20808))
+    }
+
+    @Test
+    fun theSavedStateKeepsACommandAsTypedWithoutWeighingIt() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        val built = com.v2ray.ang.core.AetherCore.of(state.toProfileItem(profile, 10819), 10819).command
+        state.aetherCommand = built
+
+        // Weighed, the command the settings build is none of its own; kept as typed, it stays, and reads back the same.
+        assertNull(state.toProfileItem(profile, 10819).aetherCommand)
+        val saved = state.toProfileItem(ProfileItem.create(EConfigType.AETHER), keepCommand = true)
+        assertEquals(built, saved.aetherCommand)
+        assertEquals(built, ServerUiState.from(saved).aetherCommand)
     }
 }

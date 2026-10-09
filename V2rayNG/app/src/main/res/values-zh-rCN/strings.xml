@@ -106,7 +106,7 @@
     <string name="server_lab_reserved">Reserved (可选，逗号隔开)</string>
     <string name="server_lab_local_address">本地地址 (可选 IPv4/IPv6，逗号隔开)</string>
     <string name="server_lab_local_mtu">MTU（可选，默认 1420）</string>
-    <string name="server_lab_remote_dns">remoteDNS(可选,多个 IPv4/IPv6 地址用逗号分隔,或填写 "local" 使用设备本地 DNS)</string>
+    <string name="server_lab_remote_dns">remoteDNS(可选,多个 IPv4/IPv6 地址用逗号分隔)</string>
     <string name="server_lab_kcp_mtu">mKCP MTU（可选，默认 1350）</string>
     <string name="server_lab_kcp_tti">mKCP TTI（可选，默认 50 毫秒）</string>
     <string name="toast_success">成功</string>
@@ -427,12 +427,6 @@
 
     <string name="import_subscription_success">订阅导入成功</string>
     <string name="import_subscription_failure">导入订阅失败</string>
-    <string name="title_fragment_settings">分片（Fragment）设置</string>
-    <string name="title_pref_fragment_packets">分片方式</string>
-    <string name="title_pref_fragment_length">分片包长（最小 - 最大）</string>
-    <string name="title_pref_fragment_interval">分片间隔（最小 - 最大）</string>
-    <string name="title_pref_fragment_enabled">启用分片（Fragment）</string>
-    <string name="title_pref_fragment_maxsplit">分片最大分割数</string>
     <string name="title_observatory_settings">连接观测设置 (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">leastPing 探测间隔</string>
     <string name="title_pref_observatory_least_load_interval">leastLoad 探测间隔</string>
@@ -462,7 +456,6 @@
     <string name="server_proxy_chain_member_unselected">请选择成员</string>
     <string name="server_proxy_chain_members_unselected">请为链路中的每一行选择成员</string>
     <string name="server_proxy_chain_members_insufficient">成员数量不足</string>
-    <string name="server_proxy_chain_members_invalid">无效的链路成员: %1$s</string>
 
     <!-- BackupActivity -->
     <string name="title_configuration_backup_restore">备份 &amp; 还原</string>
@@ -580,16 +573,32 @@
     <string name="value_unknown">未知</string>
     <string name="aether_lab_protocol">协议</string>
     <string name="aether_lab_transport">传输</string>
+    <string name="aether_lab_masque_sni">MASQUE 服务器名 (SNI)</string>
     <string name="aether_lab_scan_mode">扫描模式</string>
     <string name="aether_lab_obfuscation">混淆</string>
     <string name="aether_lab_ip_version">IP 版本</string>
     <string name="aether_lab_exit_final_mask">exit-node 的 finalMask 原始 JSON 格式: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom（默认）</string>
+    <string name="label_numbered">%1$s（%2$d）</string>
+    <string name="aether_hint_exit_node">内核经由此配置的出站向外连接，如同经由代理链的一跳；下方的 finalMask 和 dialMode 只用于 freedom</string>
+    <string name="aether_exit_node_unusable">exit-node 配置“%1$s”无法生成出站；请另选一个，或选择 freedom</string>
+    <string name="aether_exit_node_ech_unusable">exit-node 配置“%1$s”的 echOutbound 无法使用；请在该配置中修正，或另选一个，或选择 freedom</string>
+    <string name="toast_profile_name_not_found">找不到名为“%1$s”的配置</string>
+    <string name="toast_profile_name_duplicate">找到两个名为“%1$s”的配置；请重命名其中一个</string>
+    <string name="toast_profile_no_server">配置“%1$s”没有服务器地址，代理链无法经过它</string>
+    <string name="toast_profile_group_not_fallback">“%1$s”是策略组，策略组不能作为备用出站；请选择其他配置</string>
+    <string name="toast_profile_group_not_hop">“%1$s”是策略组，代理链无法经过它；请选择其他配置</string>
+    <string name="toast_profile_chain_not_hop">“%1$s”是代理链，其他代理链无法经过它；请选择其他配置</string>
+    <string name="toast_profile_custom_not_hop">“%1$s”是自定义配置，代理链无法经过它；请选择其他配置</string>
+    <string name="toast_profile_custom_not_fallback">“%1$s”是自定义配置，自定义配置不能作为备用出站；请选择其他配置</string>
+    <string name="aether_keys_hint_fragment">将 WARP API 请求的 ClientHello 分片发送，用于会过滤 API 名称的网络</string>
     <string name="aether_lab_fragment">分片 ClientHello</string>
     <string name="aether_lab_fragment_size">分片大小（字节）</string>
     <string name="aether_lab_fragment_delay">分片间隔（毫秒）</string>
     <string name="aether_lab_wiw_outer">外层节点</string>
     <string name="aether_lab_wiw_inner">内层节点</string>
     <string name="aether_hint_endpoint">留空则自动扫描</string>
+    <string name="aether_hint_gool_peer">留空则使用 WARP 分配的端点</string>
     <string name="aether_action_scan">扫描服务器</string>
     <string name="aether_action_scanning">扫描中…</string>
     <string name="aether_scan_success">已找到服务器</string>
@@ -631,6 +640,7 @@
     <string name="aether_lab_ech_domain">ECH 域名</string>
     <string name="aether_invalid_ech_dns">ECH DNS 必须是 udp://IP、tcp://IP 或 DNS-over-HTTPS 服务器的 https:// 地址</string>
     <string name="aether_invalid_ech_domain">ECH 域名必须是域名，例如 cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">MASQUE 服务器名 (SNI) 必须是域名，例如 www.cloudflare.com</string>
     <string name="aether_lab_dns">隧道内 DNS</string>
     <string name="aether_hint_dns">以逗号分隔；留空则使用 1.1.1.1 和 1.0.0.1</string>
     <string name="aether_invalid_dns">请填写解析器地址，例如 1.1.1.1 或 10.0.0.1:5353，以逗号分隔</string>
@@ -672,15 +682,17 @@
     <string name="aether_log_wireguard_inner_key_missing">WireGuard 内层节点密钥：尚未注册，将在首次扫描或连接时注册</string>
     <string name="aether_log_masque_inner_key_ready">MASQUE 内层节点密钥：设备 %1$s，IPv4 %2$s，IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">MASQUE 内层节点密钥：尚未注册，将在首次扫描或连接时注册</string>
+    <string name="aether_log_gool_key_ready">WireGuard over MASQUE 密钥：设备 %1$s，IPv4 %2$s，IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">WireGuard over MASQUE 密钥：尚未注册，将在首次扫描或连接时注册</string>
     <string name="aether_renew_blocked">请先断开 Aether 连接，再获取这些密钥；当前连接正在使用它们</string>
     <string name="aether_action_get_keys">获取新的 WARP 密钥</string>
     <string name="aether_keys_lab_kind">要获取新密钥的协议</string>
     <string name="aether_keys_kind_all">全部</string>
-    <string name="aether_keys_lab_enroll_address">请求地址</string>
+    <string name="aether_keys_lab_enroll_address">API 地址</string>
     <string name="aether_keys_hint_ech">隐藏 WARP API 请求中的服务器名称；没有可用的 ECH 密钥时不会请求 WARP 密钥</string>
     <string name="aether_lab_fingerprint">Fingerprint</string>
-    <string name="aether_keys_invalid_enroll_address">请求地址必须是 IP 地址或域名，可带端口，例如 188.114.97.6:443 或 [2606:4700::1]:8443</string>
-    <string name="aether_keys_invalid_command">命令必须注册密钥：--register 后跟 all、wg、masque、gool 或 mim</string>
+    <string name="aether_keys_invalid_enroll_address">API 地址必须是 IP 地址或域名，可带端口，例如 188.114.97.6:443 或 [2606:4700::1]:8443</string>
+    <string name="aether_keys_invalid_command">命令必须注册密钥：--register 后跟 all、wg、masque、mim、gool-classic（WARP-in-WARP）或 gool（WireGuard over MASQUE）</string>
     <string name="aether_keys_log_empty">内核输出和 WARP 密钥会显示在这里</string>
     <string name="aether_scan_blocked">请先断开 Aether 连接，再进行扫描；扫描会使用当前连接的密钥打开第二条隧道</string>
     <string name="aether_keys_missing">缺少所需的 WARP 密钥，请先获取</string>
@@ -689,6 +701,9 @@
     <string name="aether_chain_one_profile">一个代理链只能包含一个 Aether 配置</string>
     <string name="aether_exit_node_name_taken">此处路由使用了名为 exit-node 的配置，而 exit-node 是 Aether 内核向外连接所经出站的名称；请重命名该配置</string>
     <string name="aether_chain_hop_missing">无法构建此代理链中 Aether 配置向外连接所经的那一跳，Aether 内核将会不经它直接连接互联网</string>
+    <string name="config_main_outbound_missing">无法构建所选配置，所有流量将会不经它直接连接互联网；请检查其设置</string>
+    <string name="config_routing_target_unbuilt">无法构建路由规则发送流量所到的配置“%1$s”；请修复它，或关闭使用它的规则</string>
+    <string name="config_group_fallback_unbuilt">无法构建策略组的备用出站配置“%1$s”；请修复它，或为该策略组选择其他备用出站</string>
     <string name="aether_config_single_profile">一个配置只能使用一个 Aether 配置</string>
     <string name="aether_config_two_exits">这里一个 Aether 内核将不得不以两种方式向外连接：同一隧道既单独使用又位于代理链的某一跳之后，或位于两个不同的跳之后，或使用两种不同的 exit-node 设置</string>
     <string name="aether_custom_no_outbound">配置中没有 SOCKS 出站连接 %1$s:%2$d，而 Aether 命令在该处监听</string>

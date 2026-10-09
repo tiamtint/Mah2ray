@@ -9,11 +9,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewModelScope
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherKey
 import com.v2ray.ang.core.AetherKeys
 import com.v2ray.ang.core.AetherKeysSettings
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.ui.base.BaseViewModel
@@ -35,8 +37,8 @@ sealed interface AetherKeysNotice {
     /** The new keys are in place, and the cores of the run, the Aether core and the Xray exit it dialled out through, have ended. */
     data object Renewed : AetherKeysNotice
 
-    /** The settings cannot run, for [message]. */
-    data class Invalid(@StringRes val message: Int) : AetherKeysNotice
+    /** The settings cannot run, for [message], whose arguments are [args]. */
+    data class Invalid(@StringRes val message: Int, val args: List<String> = emptyList()) : AetherKeysNotice
 }
 
 /**
@@ -71,6 +73,10 @@ class AetherKeysViewModel(
     private val _notice = MutableStateFlow<AetherKeysNotice?>(null)
     val notice: StateFlow<AetherKeysNotice?> = _notice.asStateFlow()
 
+    /** The profiles a run can dial out through in place of freedom; null until they are read. */
+    private val _exitNodes = MutableStateFlow<List<AetherExitNode>?>(null)
+    val exitNodes: StateFlow<List<AetherExitNode>?> = _exitNodes.asStateFlow()
+
     private val nextLogId = AtomicLong()
     private var renewJob: Job? = null
 
@@ -84,6 +90,7 @@ class AetherKeysViewModel(
         viewModelScope.launch { _isCoreAvailable.value = source.isCoreAvailable() }
         viewModelScope.launch { settings = source.loadSettings() }
         viewModelScope.launch { showKeys(source.keys(), onlyChanges = false) }
+        viewModelScope.launch { _exitNodes.value = source.exitNodes() }
         refreshSession()
     }
 
@@ -95,6 +102,12 @@ class AetherKeysViewModel(
 
     fun setEnrollAddress(address: String) = update { it.copy(enrollAddress = address) }
 
+    fun setFragment(on: Boolean) = update { it.copy(fragment = on) }
+
+    fun setFragmentSize(size: String) = update { it.copy(fragmentSize = size) }
+
+    fun setFragmentDelay(delay: String) = update { it.copy(fragmentDelay = delay) }
+
     fun setEch(on: Boolean) = update { it.copy(ech = on) }
 
     fun setEchDns(dns: String) = update { it.copy(echDns = dns) }
@@ -102,6 +115,9 @@ class AetherKeysViewModel(
     fun setEchDomain(domain: String) = update { it.copy(echDomain = domain) }
 
     fun setFingerprint(fingerprint: AetherFingerprint) = update { it.copy(fingerprint = fingerprint) }
+
+    /** Takes the profile named [name] as the exit-node, or freedom again for a blank one. */
+    fun setExitNode(name: String) = update { it.copy(exitNode = name) }
 
     fun setFinalMask(finalMask: String) = update { it.copy(finalMask = finalMask) }
 
@@ -148,6 +164,15 @@ class AetherKeysViewModel(
                 if (session?.usesKeysOf(kind) == true) {
                     append(Log.WARN, AetherLogText.Resource(R.string.aether_renew_blocked))
                     return@launch
+                }
+                // The profile chosen as the exit-node may be renamed or gone since the page opened, or share its name with
+                // another by now; the run would reach WARP without it.
+                val node = current.exitNode.trim()
+                if (node.isNotEmpty()) {
+                    (source.findExitNode(node) as? ExitNodeOutbound.Problem)?.let { problem ->
+                        _notice.value = AetherKeysNotice.Invalid(problem.message, listOf(node))
+                        return@launch
+                    }
                 }
                 append(Log.INFO, AetherLogText.Resource(R.string.aether_log_key_renewing))
                 val keys = source.renew(kind, arguments, current.exit, ::appendOutput)
@@ -212,6 +237,7 @@ class AetherKeysViewModel(
         @StringRes
         internal fun messageOf(problem: AetherKeys.Problem): Int = when (problem) {
             AetherKeys.Problem.INVALID_ENROLL_ADDRESS -> R.string.aether_keys_invalid_enroll_address
+            AetherKeys.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
             AetherKeys.Problem.INVALID_ECH_DNS -> R.string.aether_invalid_ech_dns
             AetherKeys.Problem.INVALID_ECH_DOMAIN -> R.string.aether_invalid_ech_domain
             AetherKeys.Problem.INVALID_FINAL_MASK -> R.string.aether_lab_exit_final_mask
@@ -228,6 +254,9 @@ class AetherKeysViewModel(
 
             AetherIdentityManager.MASQUE_FILE ->
                 ServerAetherViewModel.keyLine(key.identity, R.string.aether_log_masque_key_ready, R.string.aether_log_masque_key_missing)
+
+            AetherIdentityManager.MASQUE_GOOL_FILE ->
+                ServerAetherViewModel.keyLine(key.identity, R.string.aether_log_gool_key_ready, R.string.aether_log_gool_key_missing)
 
             else ->
                 ServerAetherViewModel.keyLine(key.identity, R.string.aether_log_masque_inner_key_ready, R.string.aether_log_masque_inner_key_missing)

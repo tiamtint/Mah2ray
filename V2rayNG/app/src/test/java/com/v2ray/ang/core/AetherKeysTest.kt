@@ -118,21 +118,30 @@ class AetherKeysTest {
         assertEquals(
             listOf(
                 "--register", "all",
-                "--enroll-address", "api.cloudflareclient.com",
+                "--api-address", "api.cloudflareclient.com",
                 "--tls-ciphers", "ALL:!aPSK:!ECDSA+SHA1:!3DES",
             ),
             AetherKeys.arguments(AetherKeysSettings())
         )
-        assertEquals("aether --register all --enroll-address api.cloudflareclient.com --tls-ciphers ALL:!aPSK:!ECDSA+SHA1:!3DES", AetherKeys.builtCommand(AetherKeysSettings()))
+        assertEquals("aether --register all --api-address api.cloudflareclient.com --tls-ciphers ALL:!aPSK:!ECDSA+SHA1:!3DES", AetherKeys.builtCommand(AetherKeysSettings()))
         // A plain exit-node.
         assertEquals(AetherExit(), AetherKeysSettings().exit)
+    }
+
+    @Test
+    fun aKindStoredBeforeWireGuardOverMasqueKeepsItsKeys() {
+        // The page stored the type of the protocol; WARP-in-WARP's keys are still both WireGuard hops' ones.
+        assertEquals(AetherKeyKind.GOOL, AetherKeyKind.fromString("gool"))
+        assertEquals("gool-classic", AetherKeyKind.GOOL.register)
+        assertEquals(AetherKeyKind.WG_OVER_MASQUE, AetherKeyKind.fromString("wg-over-masque"))
+        assertEquals(AetherKeyKind.ALL, AetherKeyKind.fromString(null))
     }
 
     @Test
     fun eachKindRegistersItsKeysAndReadsBack() {
         for (kind in AetherKeyKind.entries) {
             val arguments = AetherKeys.arguments(AetherKeysSettings(kind = kind))
-            assertEquals(listOf("--register", kind.type), arguments.take(2))
+            assertEquals(listOf("--register", kind.register), arguments.take(2))
             assertEquals(kind, AetherKeys.kindOf(arguments))
         }
     }
@@ -143,6 +152,10 @@ class AetherKeysTest {
         assertEquals(AetherKeyKind.WIREGUARD, AetherKeys.kindOf(listOf("--register", "warp")))
         assertEquals(AetherKeyKind.GOOL, AetherKeys.kindOf(listOf("--register", "warp-in-warp")))
         assertEquals(AetherKeyKind.GOOL, AetherKeys.kindOf(listOf("--register", " wiw ")))
+        assertEquals(AetherKeyKind.GOOL, AetherKeys.kindOf(listOf("--register", "gool-classic")))
+        // gool is what the core's --gool runs, WireGuard over MASQUE.
+        assertEquals(AetherKeyKind.WG_OVER_MASQUE, AetherKeys.kindOf(listOf("--register", "gool")))
+        assertEquals(AetherKeyKind.WG_OVER_MASQUE, AetherKeys.kindOf(listOf("--register", "WG-over-MASQUE")))
         assertEquals(AetherKeyKind.MIM, AetherKeys.kindOf(listOf("--register", "masque-in-masque")))
         // The last one counts.
         assertEquals(AetherKeyKind.MASQUE, AetherKeys.kindOf(listOf("--register", "all", "--register", "masque")))
@@ -167,9 +180,9 @@ class AetherKeysTest {
     }
 
     @Test
-    fun aBlankRequestAddressLeavesTheCoresOwn() {
-        assertFalse("--enroll-address" in AetherKeys.arguments(AetherKeysSettings(enrollAddress = "  ")))
-        assertEquals("188.114.97.6:443", valueAfter(AetherKeys.arguments(AetherKeysSettings(enrollAddress = " 188.114.97.6:443 ")), "--enroll-address"))
+    fun aBlankApiAddressLeavesTheCoresOwn() {
+        assertFalse("--api-address" in AetherKeys.arguments(AetherKeysSettings(enrollAddress = "  ")))
+        assertEquals("188.114.97.6:443", valueAfter(AetherKeys.arguments(AetherKeysSettings(enrollAddress = " 188.114.97.6:443 ")), "--api-address"))
     }
 
     @Test
@@ -232,6 +245,48 @@ class AetherKeysTest {
         assertFalse(AetherExit.takesFinalMask("[]"))
         assertFalse(AetherExit.takesFinalMask("{not json"))
         assertFalse(AetherExit.takesFinalMask("ForceIP"))
+    }
+
+    @Test
+    fun theFragmentSendsTheClientHelloOfTheApiInPiecesShapedAsSet() {
+        val on = AetherKeysSettings(fragment = true)
+        assertEquals(
+            listOf(
+                "--register", "all",
+                "--api-address", "api.cloudflareclient.com",
+                "--fragment",
+                "--tls-ciphers", "ALL:!aPSK:!ECDSA+SHA1:!3DES",
+            ),
+            AetherKeys.arguments(on)
+        )
+        val shaped = AetherKeys.arguments(on.copy(fragmentSize = " 16 - 8 ", fragmentDelay = "5"))
+        assertEquals("8-16", valueAfter(shaped, "--fragment-size"))
+        assertEquals("5", valueAfter(shaped, "--fragment-delay"))
+        // Off, the sizes are kept, but nothing of them reaches the core, and no flag says off: the core takes none.
+        val off = AetherKeys.arguments(on.copy(fragment = false, fragmentSize = "8", fragmentDelay = "5"))
+        assertFalse("--fragment" in off)
+        assertFalse("--no-fragment" in off)
+        assertFalse("--fragment-size" in off)
+        assertFalse("--fragment-delay" in off)
+        // A size or a delay that is no number or range stops the run, only while fragmenting is on.
+        assertEquals(AetherKeys.Problem.INVALID_FRAGMENT, AetherKeys.problem(on.copy(fragmentSize = "0")))
+        assertEquals(AetherKeys.Problem.INVALID_FRAGMENT, AetherKeys.problem(on.copy(fragmentDelay = "x")))
+        assertNull(AetherKeys.problem(on.copy(fragmentSize = "8-16", fragmentDelay = "2-10")))
+        assertNull(AetherKeys.problem(on.copy(fragment = false, fragmentSize = "0")))
+    }
+
+    @Test
+    fun aProfileAsTheExitNodeLeavesTheFinalMaskAndTheDialModeOutOfUse() {
+        val noded = AetherKeysSettings(exitNode = "germany", finalMask = """{"tcp": []}""", dialMode = "ForceIP")
+        assertEquals(AetherExit(node = "germany"), noded.exit)
+        assertEquals(AetherExit(node = "germany"), noded.copy(exitNode = " germany ").exit)
+        assertNull(AetherKeys.problem(noded))
+        // A broken finalMask is refused all the same, as the Aether page refuses it: none is kept for freedom.
+        assertEquals(AetherKeys.Problem.INVALID_FINAL_MASK, AetherKeys.problem(noded.copy(finalMask = "{not json")))
+        assertEquals(AetherKeys.Problem.INVALID_FINAL_MASK, AetherKeys.problem(noded.copy(exitNode = "", finalMask = "{not json")))
+        assertEquals(AetherExit(dialMode = "ForceIP"), noded.copy(exitNode = " ", finalMask = "").exit)
+        // The exit-node is Xray's, so the command of the run stays as it was.
+        assertEquals(AetherKeys.arguments(AetherKeysSettings()), AetherKeys.arguments(AetherKeysSettings(exitNode = "germany")))
     }
 
     @Test

@@ -547,7 +547,12 @@ object AngConfigManager {
             val count = parseConfigViaSub(configText, it.guid, false)
             if (count > 0) {
                 it.subscription.lastUpdated = System.currentTimeMillis()
-                MmkvManager.encodeSubscription(it.guid, it.subscription)
+                // PattNG: the time goes onto the subscription as stored now, which keeps what an edit wrote during the
+                // download; one removed meanwhile is not listed again, and the profiles just stored for it go with it.
+                if (!MmkvManager.finishSubscriptionUpdate(it.guid, it.subscription.lastUpdated)) {
+                    LogUtil.i(AppConfig.TAG, "Subscription removed during its update: ${it.guid}")
+                    return SubscriptionUpdateResult(skipCount = 1)
+                }
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
                 return SubscriptionUpdateResult(
                     configCount = count,
@@ -569,12 +574,10 @@ object AngConfigManager {
      * @param subId The subscription ID.
      */
     fun removeInvalidServer(subId: String) {
-        val serverList = MmkvManager.decodeServerList(subId)
-        val invalidServers = serverList.filter {
-            val aff = MmkvManager.decodeServerAffiliationInfo(it)
-            aff != null && aff.testDelayMillis < 0L
-        }
-        MmkvManager.removeServers(invalidServers, subId)
+        // PattNG: among the profiles listed under the profile index lock, so that a profile an update stored, or a delete
+        // of the subscription removed, meanwhile, is not undone, by their results under the lock of the test results, so
+        // that a test passing one meanwhile keeps it; a refusal is logged there.
+        MmkvManager.tryRemoveFailedServers(subId)
     }
 
     /**
@@ -583,19 +586,12 @@ object AngConfigManager {
      * @param subId The subscription ID.
      */
     fun sortByTestResultsForSub(subId: String) {
-        val serverList = MmkvManager.decodeServerList(subId)
-        if (serverList.isEmpty()) return
-
-        val sorted = serverList
-            .map { guid ->
-                val delay =
-                    MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
-                guid to if (delay <= 0L) Long.MAX_VALUE else delay
-            }
-            .sortedBy { it.second }
-            .map { it.first }
-            .toMutableList()
-        MmkvManager.encodeServerList(sorted, subId)
+        // PattNG: the list as stored under the profile index lock, so that a profile an update stored, or a delete of the
+        // subscription removed, meanwhile, is not undone; a refusal is logged there.
+        MmkvManager.trySortServerList(subId) { guid ->
+            val delay = MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
+            if (delay <= 0L) Long.MAX_VALUE else delay
+        }
     }
 
     /**
@@ -634,8 +630,8 @@ object AngConfigManager {
         val subItem = SubscriptionItem()
         subItem.remarks = uri.fragment ?: "import sub"
         subItem.url = url
-        MmkvManager.encodeSubscription("", subItem)
-        return 1
+        // PattNG: stored and listed in one hold of the profile index lock, checked; a refusal is logged there.
+        return if (MmkvManager.tryEncodeSubscription("", subItem) != null) 1 else 0
     }
 
     /** Generates a description for the profile.

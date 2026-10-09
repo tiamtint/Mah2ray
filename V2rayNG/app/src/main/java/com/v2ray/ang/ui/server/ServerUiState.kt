@@ -6,14 +6,15 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import com.v2ray.ang.AppConfig.AETHER_ECH_DNS
 import com.v2ray.ang.AppConfig.AETHER_ECH_DOMAIN
+import com.v2ray.ang.AppConfig.AETHER_MASQUE_SNI
 import com.v2ray.ang.AppConfig.DEFAULT_PORT
 import com.v2ray.ang.AppConfig.REALITY
-import com.v2ray.ang.AppConfig.TARGET_STRATEGY_AS_IS
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_REMOTE_DNS
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.CoreOutboundBuilder
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -69,7 +70,7 @@ class ServerUiState(
     kcpTti: String = "",
     browserDialerMode: String = "",
     dialMode: String = "",
-    targetStrategy: String = TARGET_STRATEGY_AS_IS,
+    targetStrategy: String = "",
     streamSecurity: String = "",
     sni: String = "",
     allowInsecure: Boolean = false,
@@ -87,6 +88,7 @@ class ServerUiState(
     isFetchingCert: Boolean = false,
     aetherProtocol: String = AetherProtocol.WIREGUARD.type,
     aetherTransport: String = AetherTransport.HTTP3.type,
+    aetherMasqueSni: String = AETHER_MASQUE_SNI,
     aetherScanMode: String = AetherScanMode.BALANCED.type,
     aetherObfuscation: String = AetherObfuscation.AUTO.type,
     aetherFingerprint: String = AetherFingerprint.CHROME.type,
@@ -101,6 +103,7 @@ class ServerUiState(
     aetherEchDomain: String = AETHER_ECH_DOMAIN,
     aetherDns: String = "",
     aetherExitLoc: String = "",
+    aetherExitNode: String = "",
     aetherPsiphon: String = AetherPsiphon.OFF.type,
     aetherPsiphonMode: String = AetherPsiphonMode.AUTO.type,
     aetherPsiphonCdnIps: String = "",
@@ -150,6 +153,7 @@ class ServerUiState(
     var kcpTti by mutableStateOf(kcpTti)
     var browserDialerMode by mutableStateOf(browserDialerMode)
     var dialMode by mutableStateOf(dialMode)
+    /** The targetStrategy chosen; blank while the profile follows its default, see [shownTargetStrategy]. */
     var targetStrategy by mutableStateOf(targetStrategy)
     var streamSecurity by mutableStateOf(streamSecurity)
     var sni by mutableStateOf(sni)
@@ -168,6 +172,7 @@ class ServerUiState(
     var isFetchingCert by mutableStateOf(isFetchingCert)
     var aetherProtocol by mutableStateOf(aetherProtocol)
     var aetherTransport by mutableStateOf(aetherTransport)
+    var aetherMasqueSni by mutableStateOf(aetherMasqueSni)
     var aetherScanMode by mutableStateOf(aetherScanMode)
     var aetherObfuscation by mutableStateOf(aetherObfuscation)
     var aetherFingerprint by mutableStateOf(aetherFingerprint)
@@ -182,6 +187,9 @@ class ServerUiState(
     var aetherEchDomain by mutableStateOf(aetherEchDomain)
     var aetherDns by mutableStateOf(aetherDns)
     var aetherExitLoc by mutableStateOf(aetherExitLoc)
+
+    /** The name of the profile the core dials out through, see ProfileItem.aetherExitNode; blank for freedom. */
+    var aetherExitNode by mutableStateOf(aetherExitNode)
     var aetherPsiphon by mutableStateOf(aetherPsiphon)
     var aetherPsiphonMode by mutableStateOf(aetherPsiphonMode)
     var aetherPsiphonCdnIps by mutableStateOf(aetherPsiphonCdnIps)
@@ -212,7 +220,25 @@ class ServerUiState(
     val hasOtherAetherSettings: Boolean
         get() = aetherDns.isNotBlank() ||
             aetherExitLoc.isNotBlank() ||
-            (targetStrategy.isNotBlank() && targetStrategy != TARGET_STRATEGY_AS_IS)
+            (targetStrategy.isNotBlank() && targetStrategy != defaultTargetStrategy)
+
+    /**
+     * PattNG: the targetStrategy of the profile as the screen sets it up now, while it stores none: an Aether
+     * profile's follows where Tor and Psiphon stand, in its settings or in the command it carries in their place, see
+     * [CoreOutboundBuilder.defaultTargetStrategy].
+     */
+    val defaultTargetStrategy: String
+        get() = CoreOutboundBuilder.defaultTargetStrategy(
+            ProfileItem.create(configType).also {
+                it.aetherTor = aetherTor
+                it.aetherPsiphon = aetherPsiphon
+                it.aetherCommand = aetherCommand.nullIfBlank()
+            }
+        )
+
+    /** The targetStrategy the screen shows: the one chosen, or the profile's default while none is. */
+    val shownTargetStrategy: String
+        get() = targetStrategy.ifBlank { defaultTargetStrategy }
 
     var isRemarksError by mutableStateOf(false)
     var isAddressError by mutableStateOf(false)
@@ -222,9 +248,10 @@ class ServerUiState(
     /**
      * The profile the editor holds, built on [initialConfig]. An Aether profile's command line counts
      * as one of its own only when it says something else than its settings would on [aetherListenPort],
-     * the Aether listen port of the settings when null.
+     * the Aether listen port of the settings when null. PattNG: [keepCommand] keeps it as typed, trimmed and
+     * unweighed, as the screen's saved state does, which has no port of its own to weigh it on.
      */
-    fun toProfileItem(initialConfig: ProfileItem, aetherListenPort: Int? = null): ProfileItem {
+    fun toProfileItem(initialConfig: ProfileItem, aetherListenPort: Int? = null, keepCommand: Boolean = false): ProfileItem {
         val isVmess = configType == EConfigType.VMESS
         val isVless = configType == EConfigType.VLESS
         val isShadowsocks = configType == EConfigType.SHADOWSOCKS
@@ -283,7 +310,8 @@ class ServerUiState(
                 null
             },
             dialMode = dialMode.nullIfBlank(),
-            targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == TARGET_STRATEGY_AS_IS },
+            // Set below, against the default of the profile as built here.
+            targetStrategy = null,
             security = streamSecurity,
             sni = sni,
             insecure = allowInsecure,
@@ -299,6 +327,8 @@ class ServerUiState(
             pinnedCA256 = pinnedCA256,
             aetherProtocol = if (isAether) aetherProtocol else null,
             aetherTransport = if (isAether) aetherTransport else null,
+            // Kept whatever the protocol, as the transport is.
+            aetherMasqueSni = if (isAether) aetherMasqueSni.nullIfBlank() else null,
             aetherScanMode = if (isAether) aetherScanMode else null,
             aetherObfuscation = if (isAether) aetherObfuscation else null,
             aetherFingerprint = if (isAether) aetherFingerprint else null,
@@ -314,6 +344,7 @@ class ServerUiState(
             aetherEchDomain = if (isAether) aetherEchDomain.nullIfBlank() else null,
             aetherDns = if (isAether) aetherDns.nullIfBlank() else null,
             aetherExitLoc = if (isAether) aetherExitLoc.nullIfBlank() else null,
+            aetherExitNode = if (isAether) aetherExitNode.nullIfBlank() else null,
             aetherPsiphon = if (isPsiphon) aetherPsiphon else null,
             aetherPsiphonMode = if (isPsiphon) aetherPsiphonMode else null,
             aetherPsiphonCdnIps = if (isPsiphon) aetherPsiphonCdnIps.nullIfBlank() else null,
@@ -327,10 +358,18 @@ class ServerUiState(
             aetherTorRelays = if (isTor) aetherTorRelays else null,
             aetherCommand = null,
         )
-        if (!isAether) return profile
         // A command that says what the settings say is no command of its own: the profile follows the settings.
         val command = aetherCommand.trim()
-        return if (command.isEmpty() || command == AetherCore.of(profile, aetherListenPort ?: AetherCoreManager.socksPort).command) profile else profile.copy(aetherCommand = command)
+        val built = if (!isAether || command.isEmpty() ||
+            !keepCommand && command == AetherCore.of(profile, aetherListenPort ?: AetherCoreManager.socksPort).command
+        ) {
+            profile
+        } else {
+            profile.copy(aetherCommand = command)
+        }
+        // The profile's default is stored as none, so that the profile follows it, as Tor and Psiphon move it; anything
+        // else as it is.
+        return built.copy(targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == CoreOutboundBuilder.defaultTargetStrategy(built) })
     }
 
     companion object {
@@ -375,7 +414,7 @@ class ServerUiState(
                 kcpTti = initialConfig.kcpTti?.toString() ?: "",
                 browserDialerMode = initialConfig.browserDialerMode ?: "",
                 dialMode = initialConfig.dialMode ?: "",
-                targetStrategy = initialConfig.targetStrategy ?: TARGET_STRATEGY_AS_IS,
+                targetStrategy = initialConfig.targetStrategy.orEmpty(),
                 streamSecurity = initialConfig.security ?: "",
                 sni = initialConfig.sni ?: "",
                 allowInsecure = initialConfig.insecure == true,
@@ -393,6 +432,8 @@ class ServerUiState(
                 // Normalized so the dropdowns always hold one of their own values, whatever was persisted.
                 aetherProtocol = AetherProtocol.fromString(initialConfig.aetherProtocol).type,
                 aetherTransport = AetherTransport.fromString(initialConfig.aetherTransport).type,
+                // Shown filled in, as the ECH settings are, so that what the core is told is in sight.
+                aetherMasqueSni = initialConfig.aetherMasqueSni.nullIfBlank() ?: AETHER_MASQUE_SNI,
                 aetherScanMode = AetherScanMode.fromString(initialConfig.aetherScanMode).type,
                 aetherObfuscation = AetherObfuscation.fromString(initialConfig.aetherObfuscation).type,
                 aetherFingerprint = AetherFingerprint.fromString(initialConfig.aetherFingerprint).type,
@@ -408,6 +449,7 @@ class ServerUiState(
                 aetherEchDomain = initialConfig.aetherEchDomain.nullIfBlank() ?: AETHER_ECH_DOMAIN,
                 aetherDns = initialConfig.aetherDns ?: "",
                 aetherExitLoc = initialConfig.aetherExitLoc ?: "",
+                aetherExitNode = initialConfig.aetherExitNode ?: "",
                 aetherPsiphon = AetherPsiphon.fromString(initialConfig.aetherPsiphon).type,
                 aetherPsiphonMode = AetherPsiphonMode.fromString(initialConfig.aetherPsiphonMode).type,
                 aetherPsiphonCdnIps = initialConfig.aetherPsiphonCdnIps ?: "",
@@ -427,7 +469,8 @@ class ServerUiState(
         ): ServerUiState = fromProfileItem(initialConfig)
 
         val Saver: Saver<ServerUiState, String> = Saver(
-            save = { JsonUtil.toJson(it.toProfileItem(ProfileItem.create(it.configType))) },
+            // PattNG: kept as typed, trimmed, see toProfileItem: weighing it would read the listen port of the settings.
+            save = { JsonUtil.toJson(it.toProfileItem(ProfileItem.create(it.configType), keepCommand = true)) },
             restore = { saved ->
                 JsonUtil.fromJsonSafe(saved, ProfileItem::class.java)?.let {
                     fromProfileItem(it)

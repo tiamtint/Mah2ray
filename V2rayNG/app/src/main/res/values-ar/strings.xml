@@ -106,7 +106,7 @@
     <string name="server_lab_reserved">Reserved (اختياري، مفصول بفواصل)</string>
     <string name="server_lab_local_address">العنوان المحلي (اختياري IPv4/IPv6، مفصولة بفواصل)</string>
     <string name="server_lab_local_mtu">MTU (اختياري، الافتراضي 1420)</string>
-    <string name="server_lab_remote_dns">remoteDNS (اختياري، عناوين IPv4/IPv6 مفصولة بفواصل، أو "local" لاستخدام DNS الجهاز)</string>
+    <string name="server_lab_remote_dns">remoteDNS (اختياري، عناوين IPv4/IPv6 مفصولة بفواصل)</string>
     <string name="server_lab_kcp_mtu">mKCP MTU (اختياري، الافتراضي 1350)</string>
     <string name="server_lab_kcp_tti">mKCP TTI (اختياري، الافتراضي 50 مللي ثانية)</string>
     <string name="toast_success">نجاح</string>
@@ -437,12 +437,6 @@
 
     <string name="import_subscription_success">تم استيراد الاشتراك بنجاح</string>
     <string name="import_subscription_failure">فشل استيراد الاشتراك</string>
-    <string name="title_fragment_settings">إعدادات تجزئة الحزم (Fragment)</string>
-    <string name="title_pref_fragment_packets">الحزم المراد تجزئتها</string>
-    <string name="title_pref_fragment_length">طول الجزء (الحد الأدنى - الحد الأقصى)</string>
-    <string name="title_pref_fragment_interval">فاصل الجزء (الحد الأدنى - الحد الأقصى)</string>
-    <string name="title_pref_fragment_enabled">تفعيل تجزئة الحزم</string>
-    <string name="title_pref_fragment_maxsplit">الحد الأقصى لعدد الأجزاء</string>
     <string name="title_observatory_settings">إعدادات مراقبة الاتصال (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">فاصل leastPing</string>
     <string name="title_pref_observatory_least_load_interval">فاصل leastLoad</string>
@@ -472,7 +466,6 @@
     <string name="server_proxy_chain_member_unselected">اختر عضوًا</string>
     <string name="server_proxy_chain_members_unselected">يرجى اختيار عضو لكل صف في السلسلة</string>
     <string name="server_proxy_chain_members_insufficient">عدد الأعضاء غير كافٍ</string>
-    <string name="server_proxy_chain_members_invalid">أعضاء سلسلة غير صالحين: %1$s</string>
 
     <!-- BackupActivity -->
     <string name="title_configuration_backup_restore">النسخ الاحتياطي والاستعادة</string>
@@ -590,16 +583,32 @@
     <string name="value_unknown">غير معروف</string>
     <string name="aether_lab_protocol">البروتوكول</string>
     <string name="aether_lab_transport">الناقل</string>
+    <string name="aether_lab_masque_sni">اسم خادم MASQUE (SNI)</string>
     <string name="aether_lab_scan_mode">وضع الفحص</string>
     <string name="aether_lab_obfuscation">التمويه</string>
     <string name="aether_lab_ip_version">إصدار IP</string>
     <string name="aether_lab_exit_final_mask">JSON خام لحقل finalMask في exit-node، بالتنسيق: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom (الافتراضي)</string>
+    <string name="label_numbered">%1$s (%2$d)</string>
+    <string name="aether_hint_exit_node">تتصل النواة بالخارج عبر الصادر الخاص بهذا الملف، كما عبر قفزة في سلسلة الوكيل؛ وحقلا finalMask وdialMode أدناه لـ freedom وحده</string>
+    <string name="aether_exit_node_unusable">ملف exit-node «%1$s» لا يعطي صادرًا؛ اختر ملفًا آخر، أو freedom</string>
+    <string name="aether_exit_node_ech_unusable">لا يمكن استخدام echOutbound لملف exit-node «%1$s»؛ أصلحه في ذلك الملف، أو اختر ملفًا آخر، أو freedom</string>
+    <string name="toast_profile_name_not_found">لم يُعثر على أي ملف باسم «%1$s»</string>
+    <string name="toast_profile_name_duplicate">عُثر على ملفين باسم «%1$s»؛ يرجى إعادة تسمية أحدهما</string>
+    <string name="toast_profile_no_server">الملف «%1$s» ليس له عنوان خادم، لذا لا يمكن لسلسلة الوكيل أن تمر عبره</string>
+    <string name="toast_profile_group_not_fallback">«%1$s» مجموعة سياسات، ولا يمكن لمجموعة سياسات أن تكون اتصالًا صادرًا احتياطيًا؛ اختر ملفًا آخر</string>
+    <string name="toast_profile_group_not_hop">«%1$s» مجموعة سياسات، لذا لا يمكن لسلسلة الوكيل أن تمر عبرها؛ اختر ملفًا آخر</string>
+    <string name="toast_profile_chain_not_hop">«%1$s» سلسلة وكيل، لذا لا يمكن لسلسلة وكيل أخرى أن تمر عبرها؛ اختر ملفًا آخر</string>
+    <string name="toast_profile_custom_not_hop">«%1$s» تكوين مخصص، لذا لا يمكن لسلسلة الوكيل أن تمر عبره؛ اختر ملفًا آخر</string>
+    <string name="toast_profile_custom_not_fallback">«%1$s» تكوين مخصص، ولا يمكن لتكوين مخصص أن يكون اتصالًا صادرًا احتياطيًا؛ اختر ملفًا آخر</string>
+    <string name="aether_keys_hint_fragment">يرسل ClientHello لطلبات WARP API على أجزاء، للشبكات التي ترشّح اسم الـ API</string>
     <string name="aether_lab_fragment">تجزئة ClientHello</string>
     <string name="aether_lab_fragment_size">حجم الأجزاء (بايت)</string>
     <string name="aether_lab_fragment_delay">التأخير بين الأجزاء (مللي ثانية)</string>
     <string name="aether_lab_wiw_outer">القفزة الخارجية</string>
     <string name="aether_lab_wiw_inner">القفزة الداخلية</string>
     <string name="aether_hint_endpoint">اتركه فارغًا للفحص</string>
+    <string name="aether_hint_gool_peer">اتركه فارغًا لاستخدام نقطة النهاية التي يعيّنها WARP</string>
     <string name="aether_action_scan">ابحث عن خادم</string>
     <string name="aether_action_scanning">جارٍ الفحص…</string>
     <string name="aether_scan_success">تم العثور على خادم</string>
@@ -641,6 +650,7 @@
     <string name="aether_lab_ech_domain">نطاق ECH</string>
     <string name="aether_invalid_ech_dns">يجب أن يكون DNS لـ ECH بالشكل udp://IP أو tcp://IP أو عنوان https:// لخادم DNS-over-HTTPS</string>
     <string name="aether_invalid_ech_domain">يجب أن يكون نطاق ECH اسم نطاق، مثل cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">يجب أن يكون اسم خادم MASQUE (SNI) اسم نطاق، مثل www.cloudflare.com</string>
     <string name="aether_lab_dns">DNS داخل النفق</string>
     <string name="aether_hint_dns">مفصولة بفواصل؛ اتركه فارغًا لاستخدام 1.1.1.1 و1.0.0.1</string>
     <string name="aether_invalid_dns">اكتب عناوين محلّلات مثل 1.1.1.1 أو 10.0.0.1:5353 مفصولة بفواصل</string>
@@ -682,15 +692,17 @@
     <string name="aether_log_wireguard_inner_key_missing">مفتاح القفزة الداخلية لـ WireGuard: غير مسجل بعد؛ سيُسجل عند أول فحص أو اتصال</string>
     <string name="aether_log_masque_inner_key_ready">مفتاح القفزة الداخلية لـ MASQUE: الجهاز %1$s، IPv4 %2$s، IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">مفتاح القفزة الداخلية لـ MASQUE: غير مسجل بعد؛ سيُسجل عند أول فحص أو اتصال</string>
+    <string name="aether_log_gool_key_ready">مفتاح WireGuard over MASQUE: الجهاز %1$s، IPv4 %2$s، IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">مفتاح WireGuard over MASQUE: غير مسجل بعد؛ سيُسجل عند أول فحص أو اتصال</string>
     <string name="aether_renew_blocked">افصل ملف Aether قبل الحصول على هذه المفاتيح؛ الاتصال الجاري يستخدمها</string>
     <string name="aether_action_get_keys">الحصول على مفاتيح WARP جديدة</string>
     <string name="aether_keys_lab_kind">الحصول على مفاتيح جديدة لـ</string>
     <string name="aether_keys_kind_all">الكل</string>
-    <string name="aether_keys_lab_enroll_address">عنوان الطلب</string>
+    <string name="aether_keys_lab_enroll_address">عنوان API</string>
     <string name="aether_keys_hint_ech">يخفي اسم الخادم في طلبات WARP API؛ بدون مفتاح ECH صالح للاستخدام لا يُطلب أي مفتاح WARP</string>
     <string name="aether_lab_fingerprint">البصمة</string>
-    <string name="aether_keys_invalid_enroll_address">يجب أن يكون عنوان الطلب عنوان IP أو اسم نطاق، مع منفذ أو بدونه، مثل 188.114.97.6:443 أو [2606:4700::1]:8443</string>
-    <string name="aether_keys_invalid_command">يجب أن يسجّل الأمر مفاتيح: --register متبوعًا بـ all أو wg أو masque أو gool أو mim</string>
+    <string name="aether_keys_invalid_enroll_address">يجب أن يكون عنوان API عنوان IP أو اسم نطاق، مع منفذ أو بدونه، مثل 188.114.97.6:443 أو [2606:4700::1]:8443</string>
+    <string name="aether_keys_invalid_command">يجب أن يسجّل الأمر مفاتيح: --register متبوعًا بـ all أو wg أو masque أو mim أو gool-classic (WARP-in-WARP) أو gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">تظهر هنا مخرجات النواة ومفاتيح WARP</string>
     <string name="aether_scan_blocked">افصل ملف Aether قبل الفحص؛ الفحص سيفتح نفقًا ثانيًا بمفتاح الاتصال الحالي</string>
     <string name="aether_keys_missing">ليس لديك مفتاح WARP المطلوب؛ احصل عليه أولًا</string>
@@ -699,6 +711,9 @@
     <string name="aether_chain_one_profile">لا يمكن أن تحتوي سلسلة الوكيل إلا على ملف Aether واحد</string>
     <string name="aether_exit_node_name_taken">يُستخدم ملف باسم exit-node في التوجيه هنا، وexit-node هو اسم المنفذ الصادر الذي تتصل عبره نواة Aether بالخارج؛ غيّر اسم ذلك الملف</string>
     <string name="aether_chain_hop_missing">تعذّر إنشاء القفزة التي يتصل عبرها ملف Aether في سلسلة الوكيل هذه بالخارج، وكانت نواة Aether ستصل إلى الإنترنت بدونها</string>
+    <string name="config_main_outbound_missing">تعذّر إنشاء الملف المحدد، وكانت كل حركة المرور ستصل إلى الإنترنت مباشرة بدونه؛ تحقق من إعداداته</string>
+    <string name="config_routing_target_unbuilt">تعذّر إنشاء الملف «%1$s» الذي ترسل إليه قاعدة توجيه حركة المرور؛ أصلحه أو عطّل القواعد التي تستخدمه</string>
+    <string name="config_group_fallback_unbuilt">تعذّر إنشاء الملف «%1$s» وهو الاتصال الصادر الاحتياطي لمجموعة سياسات؛ أصلحه أو اختر اتصالًا صادرًا احتياطيًا آخر للمجموعة</string>
     <string name="aether_config_single_profile">لا يمكن للتكوين استخدام أكثر من ملف Aether واحد</string>
     <string name="aether_config_two_exits">سيتعين على نواة Aether واحدة أن تتصل بالخارج بطريقتين هنا: النفق نفسه مستخدم بمفرده وخلف قفزة في سلسلة وكيل، أو خلف قفزتين مختلفتين، أو بإعدادين مختلفين لـ exit-node</string>
     <string name="aether_custom_no_outbound">لا يتصل أي مخرج SOCKS في الإعدادات بالعنوان %1$s:%2$d، حيث يستمع أمر Aether</string>

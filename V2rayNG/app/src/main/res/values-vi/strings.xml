@@ -106,7 +106,7 @@
     <string name="server_lab_reserved">Reserved (không bắt buộc, phân cách bằng dấu phẩy)</string>
     <string name="server_lab_local_address">Địa chỉ cục bộ (IPv4/IPv6 không bắt buộc, phân cách bằng dấu phẩy)</string>
     <string name="server_lab_local_mtu">MTU (không bắt buộc, mặc định 1420)</string>
-    <string name="server_lab_remote_dns">remoteDNS (tùy chọn, các địa chỉ IPv4/IPv6 cách nhau bằng dấu phẩy, hoặc "local" để dùng DNS của thiết bị)</string>
+    <string name="server_lab_remote_dns">remoteDNS (tùy chọn, các địa chỉ IPv4/IPv6 cách nhau bằng dấu phẩy)</string>
     <string name="server_lab_kcp_mtu">mKCP MTU (không bắt buộc, mặc định 1350)</string>
     <string name="server_lab_kcp_tti">mKCP TTI (không bắt buộc, mặc định 50 ms)</string>
     <string name="toast_success">Thành công!</string>
@@ -427,12 +427,6 @@
 
     <string name="import_subscription_success">Nhập gói đăng ký thành công!</string>
     <string name="import_subscription_failure">Nhập gói đăng ký không thành công!</string>
-    <string name="title_fragment_settings">Cài đặt phân mảnh (Fragment)</string>
-    <string name="title_pref_fragment_packets">Gói tin cần phân mảnh</string>
-    <string name="title_pref_fragment_length">Độ dài phân mảnh (tối thiểu-tối đa)</string>
-    <string name="title_pref_fragment_interval">Khoảng phân mảnh (tối thiểu-tối đa)</string>
-    <string name="title_pref_fragment_enabled">Bật phân mảnh</string>
-    <string name="title_pref_fragment_maxsplit">Số lần chia nhỏ tối đa</string>
     <string name="title_observatory_settings">Cài đặt giám sát kết nối (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">Khoảng thời gian leastPing</string>
     <string name="title_pref_observatory_least_load_interval">Khoảng thời gian leastLoad</string>
@@ -462,7 +456,6 @@
     <string name="server_proxy_chain_member_unselected">Chọn một thành viên</string>
     <string name="server_proxy_chain_members_unselected">Vui lòng chọn thành viên cho từng hàng trong chuỗi</string>
     <string name="server_proxy_chain_members_insufficient">Không đủ thành viên</string>
-    <string name="server_proxy_chain_members_invalid">Thành viên chuỗi không hợp lệ: %1$s</string>
 
     <!-- BackupActivity -->
     <string name="title_configuration_backup_restore">Sao lưu &amp; khôi phục</string>
@@ -580,16 +573,32 @@
     <string name="value_unknown">không xác định</string>
     <string name="aether_lab_protocol">Giao thức</string>
     <string name="aether_lab_transport">Truyền tải</string>
+    <string name="aether_lab_masque_sni">Tên máy chủ MASQUE (SNI)</string>
     <string name="aether_lab_scan_mode">Chế độ quét</string>
     <string name="aether_lab_obfuscation">Làm rối</string>
     <string name="aether_lab_ip_version">Phiên bản IP</string>
     <string name="aether_lab_exit_final_mask">JSON thô của finalMask cho exit-node, định dạng: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom (mặc định)</string>
+    <string name="label_numbered">%1$s (%2$d)</string>
+    <string name="aether_hint_exit_node">Lõi kết nối ra ngoài qua outbound của hồ sơ này, như qua một chặng của chuỗi proxy; finalMask và dialMode bên dưới chỉ dùng cho freedom</string>
+    <string name="aether_exit_node_unusable">Hồ sơ exit-node \"%1$s\" không tạo được outbound; hãy chọn hồ sơ khác, hoặc freedom</string>
+    <string name="aether_exit_node_ech_unusable">Không dùng được echOutbound của hồ sơ exit-node \"%1$s\"; hãy sửa nó trong hồ sơ đó, hoặc chọn hồ sơ khác, hoặc freedom</string>
+    <string name="toast_profile_name_not_found">Không tìm thấy hồ sơ nào tên \"%1$s\"</string>
+    <string name="toast_profile_name_duplicate">Tìm thấy hai hồ sơ cùng tên \"%1$s\"; hãy đổi tên một hồ sơ</string>
+    <string name="toast_profile_no_server">Hồ sơ \"%1$s\" không có địa chỉ máy chủ, nên chuỗi proxy không thể đi qua nó</string>
+    <string name="toast_profile_group_not_fallback">\"%1$s\" là một nhóm chính sách, và nhóm chính sách không thể làm kết nối dự phòng; hãy chọn hồ sơ khác</string>
+    <string name="toast_profile_group_not_hop">\"%1$s\" là một nhóm chính sách, nên chuỗi proxy không thể đi qua nó; hãy chọn hồ sơ khác</string>
+    <string name="toast_profile_chain_not_hop">\"%1$s\" là một chuỗi proxy, nên chuỗi proxy khác không thể đi qua nó; hãy chọn hồ sơ khác</string>
+    <string name="toast_profile_custom_not_hop">\"%1$s\" là một cấu hình tùy chỉnh, nên chuỗi proxy không thể đi qua nó; hãy chọn hồ sơ khác</string>
+    <string name="toast_profile_custom_not_fallback">\"%1$s\" là một cấu hình tùy chỉnh, và cấu hình tùy chỉnh không thể làm kết nối dự phòng; hãy chọn hồ sơ khác</string>
+    <string name="aether_keys_hint_fragment">Gửi ClientHello của các yêu cầu tới WARP API thành từng mảnh, cho các mạng lọc tên của API</string>
     <string name="aether_lab_fragment">Phân mảnh ClientHello</string>
     <string name="aether_lab_fragment_size">Kích thước mảnh (byte)</string>
     <string name="aether_lab_fragment_delay">Độ trễ giữa các mảnh (ms)</string>
     <string name="aether_lab_wiw_outer">Chặng ngoài</string>
     <string name="aether_lab_wiw_inner">Chặng trong</string>
     <string name="aether_hint_endpoint">Để trống để quét</string>
+    <string name="aether_hint_gool_peer">Để trống để dùng endpoint do WARP cấp</string>
     <string name="aether_action_scan">Tìm máy chủ</string>
     <string name="aether_action_scanning">Đang quét…</string>
     <string name="aether_scan_success">Đã tìm thấy máy chủ</string>
@@ -631,6 +640,7 @@
     <string name="aether_lab_ech_domain">Tên miền ECH</string>
     <string name="aether_invalid_ech_dns">DNS cho ECH phải là udp://IP, tcp://IP hoặc địa chỉ https:// của máy chủ DNS-over-HTTPS</string>
     <string name="aether_invalid_ech_domain">Tên miền ECH phải là một tên miền, ví dụ cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">Tên máy chủ MASQUE (SNI) phải là một tên miền, ví dụ www.cloudflare.com</string>
     <string name="aether_lab_dns">DNS trong đường hầm</string>
     <string name="aether_hint_dns">Phân cách bằng dấu phẩy; để trống để dùng 1.1.1.1 và 1.0.0.1</string>
     <string name="aether_invalid_dns">Hãy nhập địa chỉ máy phân giải như 1.1.1.1 hoặc 10.0.0.1:5353, phân cách bằng dấu phẩy</string>
@@ -672,15 +682,17 @@
     <string name="aether_log_wireguard_inner_key_missing">Khóa chặng trong WireGuard: chưa đăng ký; sẽ được đăng ký ở lần quét hoặc kết nối đầu tiên</string>
     <string name="aether_log_masque_inner_key_ready">Khóa chặng trong MASQUE: thiết bị %1$s, IPv4 %2$s, IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">Khóa chặng trong MASQUE: chưa đăng ký; sẽ được đăng ký ở lần quét hoặc kết nối đầu tiên</string>
+    <string name="aether_log_gool_key_ready">Khóa WireGuard over MASQUE: thiết bị %1$s, IPv4 %2$s, IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">Khóa WireGuard over MASQUE: chưa đăng ký; sẽ được đăng ký ở lần quét hoặc kết nối đầu tiên</string>
     <string name="aether_renew_blocked">Hãy ngắt kết nối Aether trước khi lấy các khóa này; kết nối hiện tại đang dùng chúng</string>
     <string name="aether_action_get_keys">Lấy khóa WARP mới</string>
     <string name="aether_keys_lab_kind">Lấy khóa mới cho</string>
     <string name="aether_keys_kind_all">Tất cả</string>
-    <string name="aether_keys_lab_enroll_address">Địa chỉ yêu cầu</string>
+    <string name="aether_keys_lab_enroll_address">Địa chỉ API</string>
     <string name="aether_keys_hint_ech">Ẩn tên máy chủ trong các yêu cầu tới WARP API; không có khóa ECH dùng được thì không yêu cầu khóa WARP nào</string>
     <string name="aether_lab_fingerprint">Fingerprint</string>
-    <string name="aether_keys_invalid_enroll_address">Địa chỉ yêu cầu phải là địa chỉ IP hoặc tên miền, có hoặc không có cổng, ví dụ 188.114.97.6:443 hoặc [2606:4700::1]:8443</string>
-    <string name="aether_keys_invalid_command">Lệnh phải đăng ký khóa: --register theo sau là all, wg, masque, gool hoặc mim</string>
+    <string name="aether_keys_invalid_enroll_address">Địa chỉ API phải là địa chỉ IP hoặc tên miền, có hoặc không có cổng, ví dụ 188.114.97.6:443 hoặc [2606:4700::1]:8443</string>
+    <string name="aether_keys_invalid_command">Lệnh phải đăng ký khóa: --register theo sau là all, wg, masque, mim, gool-classic (WARP-in-WARP) hoặc gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">Đầu ra của lõi và các khóa WARP sẽ hiển thị ở đây</string>
     <string name="aether_scan_blocked">Hãy ngắt kết nối Aether trước khi quét; việc quét sẽ mở một đường hầm thứ hai bằng khóa của kết nối hiện tại</string>
     <string name="aether_keys_missing">Bạn chưa có khóa WARP cần thiết; hãy lấy khóa trước</string>
@@ -689,6 +701,9 @@
     <string name="aether_chain_one_profile">Một chuỗi proxy chỉ có thể có một hồ sơ Aether</string>
     <string name="aether_exit_node_name_taken">Định tuyến ở đây dùng một hồ sơ tên exit-node, mà exit-node là tên outbound qua đó lõi Aether kết nối ra ngoài; hãy đổi tên hồ sơ đó</string>
     <string name="aether_chain_hop_missing">Không thể dựng chặng mà hồ sơ Aether trong chuỗi proxy này dùng để kết nối ra ngoài, và lõi Aether sẽ ra Internet mà không qua nó</string>
+    <string name="config_main_outbound_missing">Không thể dựng hồ sơ đã chọn, và mọi lưu lượng sẽ ra Internet trực tiếp mà không qua nó; hãy kiểm tra cài đặt của nó</string>
+    <string name="config_routing_target_unbuilt">Không thể dựng hồ sơ \"%1$s\" mà một quy tắc định tuyến gửi lưu lượng tới; hãy sửa nó, hoặc tắt các quy tắc dùng nó</string>
+    <string name="config_group_fallback_unbuilt">Không thể dựng hồ sơ \"%1$s\", kết nối dự phòng của một nhóm chính sách; hãy sửa nó, hoặc chọn kết nối dự phòng khác cho nhóm</string>
     <string name="aether_config_single_profile">Một cấu hình chỉ có thể dùng một hồ sơ Aether</string>
     <string name="aether_config_two_exits">Ở đây một lõi Aether sẽ phải kết nối ra ngoài theo hai cách: cùng một đường hầm được dùng riêng lẻ và sau một chặng của chuỗi proxy, sau hai chặng khác nhau, hoặc với hai thiết lập exit-node khác nhau</string>
     <string name="aether_custom_no_outbound">Không có outbound SOCKS nào của cấu hình kết nối tới %1$s:%2$d, nơi lệnh Aether lắng nghe</string>

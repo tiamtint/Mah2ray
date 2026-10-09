@@ -106,7 +106,7 @@
     <string name="server_lab_reserved">Reserved(اختیاری، وا کاما (,) ز یک جوڌا ابۊن)</string>
     <string name="server_lab_local_address">نشۊوی مهلی (اختیاری IPv4/IPv6، وا کاما (,) ز یک جوڌا ابۊن)</string>
     <string name="server_lab_local_mtu">MTU(اختیاری، پؽش فرز 1420)</string>
-    <string name="server_lab_remote_dns">remoteDNS (اختياری، نشۊویا IPv4/IPv6 جوڌا وابیڌه وا کاما، یا «local» سی و کار گرؽڌن DNS دسگا)</string>
+    <string name="server_lab_remote_dns">remoteDNS (اختياری، نشۊویا IPv4/IPv6 جوڌا وابیڌه وا کاما)</string>
     <string name="server_lab_kcp_mtu">mKCP MTU (اختیاری، پؽش فرز 1350)</string>
     <string name="server_lab_kcp_tti">mKCP TTI (اختیاری، پؽش فرز 50 میلی‌سانیه)</string>
     <string name="toast_success">وا مووفقیت ٱنجوم وابی</string>
@@ -429,12 +429,6 @@
 
     <string name="import_subscription_success">اشتراک وا مووفقیت و من ٱوورده وابی</string>
     <string name="import_subscription_failure">و من ٱووردن اشتراک مووفق نبی</string>
-    <string name="title_fragment_settings">سامووا فرگمنت (Fragment)</string>
-    <string name="title_pref_fragment_packets">کتنا فرگمنت</string>
-    <string name="title_pref_fragment_length">تۊل کتنا فرگمنت (هدقل-هدکسر)</string>
-    <string name="title_pref_fragment_interval">فاسله منجا کتنا فرگمنت (هدقل-هدکسر)</string>
-    <string name="title_pref_fragment_enabled">ره وندن فرگمنت</string>
-    <string name="title_pref_fragment_maxsplit">هدکسر تقسیم فرگمنت</string>
     <string name="title_observatory_settings">سامووا واجۊری منپیز (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">فاسله leastPing</string>
     <string name="title_pref_observatory_least_load_interval">فاسله leastLoad</string>
@@ -464,7 +458,6 @@
     <string name="server_proxy_chain_member_unselected">ی عوزو پسند کۊنین</string>
     <string name="server_proxy_chain_members_unselected">سی هر ردیف زنجیره، ی عوزو پسند کۊنین</string>
     <string name="server_proxy_chain_members_insufficient">تعداڌ ٱئزا بس نؽ</string>
-    <string name="server_proxy_chain_members_invalid">ٱئزا نا موئتبر زنجیره: %1$s</string>
 
     <!-- BackupActivity -->
     <string name="title_configuration_backup_restore">لادراری گرؽڌن &amp; وورگندن</string>
@@ -582,16 +575,32 @@
     <string name="value_unknown">نا موشخس</string>
     <string name="aether_lab_protocol">پروتکل</string>
     <string name="aether_lab_transport">حامل</string>
+    <string name="aether_lab_masque_sni">نوم سرور MASQUE (SNI)</string>
     <string name="aether_lab_scan_mode">حالت اسکن</string>
     <string name="aether_lab_obfuscation">مبهم‌سازی</string>
     <string name="aether_lab_ip_version">نسخه IP</string>
     <string name="aether_lab_exit_final_mask">finalMask خام JSON سی exit-node، قالوو: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom (پؽش فرز)</string>
+    <string name="label_numbered">%1$s (%2$d)</string>
+    <string name="aether_hint_exit_node">هسته زه ری خروجی ای پروفایل وو بیرون وصل ابۊ، چی گامی زه زنجیره پروکسی؛ finalMask وو dialMode پایین فقط سی freedom ـن</string>
+    <string name="aether_exit_node_unusable">خروجی پروفایل exit-node «%1$s» ساخته نبی؛ یه پروفایل دیه یا freedom انتخاب کنین</string>
+    <string name="aether_exit_node_ech_unusable">echOutbound پروفایل exit-node «%1$s» قابل استفاده نی؛ من هموو پروفایل درسس کۊنین، یا یه پروفایل دیه یا freedom انتخاب کنین</string>
+    <string name="toast_profile_name_not_found">هیچ پروفایلی وا نوم «%1$s» پیدا نبی</string>
+    <string name="toast_profile_name_duplicate">دو پروفایل وا نوم «%1$s» پیدا بین؛ نوم یکیشونه آلشت کۊنین</string>
+    <string name="toast_profile_no_server">پروفایل «%1$s» نشۊوی سرور ناره، سی همی زنجیره پروکسی ازس رد نیبۊ</string>
+    <string name="toast_profile_group_not_fallback">«%1$s» یه بونکۊ سیاسته، وو بونکۊ سیاست سی بارت جایگۊزین قابل استفاده نی؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_group_not_hop">«%1$s» یه بونکۊ سیاسته، سی همی زنجیره پروکسی ازس رد نیبۊ؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_chain_not_hop">«%1$s» یه زنجیره پروکسیه، سی همی زنجیره پروکسی دیه ازس رد نیبۊ؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_custom_not_hop">«%1$s» یه کانفیگ سفارشیه، سی همی زنجیره پروکسی ازس رد نیبۊ؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_custom_not_fallback">«%1$s» یه کانفیگ سفارشیه، وو کانفیگ سفارشی سی بارت جایگۊزین قابل استفاده نی؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="aether_keys_hint_fragment">ClientHello درخواستا WARP API تکه‌تکه فرستاده ابۊ، سی شبکه‌یایی که نوم API نه فیلتر اکنن</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌یل (بایت)</string>
     <string name="aether_lab_fragment_delay">تأخیر میون تکه‌یل (میلی‌ثانیه)</string>
     <string name="aether_lab_wiw_outer">مسیر بیرونی</string>
     <string name="aether_lab_wiw_inner">مسیر درونی</string>
     <string name="aether_hint_endpoint">خالی بیلید تا اسکن بوهه</string>
+    <string name="aether_hint_gool_peer">خالی بیلین تا نشۊوی که WARP ایده استفاده بۊ</string>
     <string name="aether_action_scan">اسکن سی پیدا کردن سرور</string>
     <string name="aether_action_scanning">د حال اسکن…</string>
     <string name="aether_scan_success">سرور پیدا بی</string>
@@ -633,6 +642,7 @@
     <string name="aether_lab_ech_domain">دامنه ECH</string>
     <string name="aether_invalid_ech_dns">DNS سی ECH باید udp://IP، tcp://IP یا نشونی https:// یه سرور DNS-over-HTTPS بۊ</string>
     <string name="aether_invalid_ech_domain">دامنه ECH باید یه نوم دامنه بۊ، چی cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">نوم سرور MASQUE (SNI) باید یه نوم دامنه بۊ، چی www.cloudflare.com</string>
     <string name="aether_lab_dns">DNS من تونل</string>
     <string name="aether_hint_dns">وا کاما سوا کنین؛ خالی بیلین تا 1.1.1.1 و 1.0.0.1 استفاده بۊ</string>
     <string name="aether_invalid_dns">نشونی‌یای DNS مثل 1.1.1.1 یا 10.0.0.1:5353 نه وا کاما سوا بنویسین</string>
@@ -674,15 +684,17 @@
     <string name="aether_log_wireguard_inner_key_missing">کلید مسیر درونی WireGuard: هنی ثبت نبیڌه؛ د اولین اسکن یا اتصال ثبت ابۊ</string>
     <string name="aether_log_masque_inner_key_ready">کلید مسیر درونی MASQUE: دستگاه %1$s، IPv4 %2$s، IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">کلید مسیر درونی MASQUE: هنی ثبت نبیڌه؛ د اولین اسکن یا اتصال ثبت ابۊ</string>
+    <string name="aether_log_gool_key_ready">کلید WireGuard over MASQUE: دستگاه %1$s، IPv4 %2$s، IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">کلید WireGuard over MASQUE: هنی ثبت نبیڌه؛ د اولین اسکن یا اتصال ثبت ابۊ</string>
     <string name="aether_renew_blocked">پیش زه گرفتن ای کلیدا، اتصال Aether نه قطع کنین؛ اتصال ایسا زشۊ استفاده ایکنه</string>
     <string name="aether_action_get_keys">گرفتن کلیدا تازه WARP</string>
     <string name="aether_keys_lab_kind">گرفتن کلید تازه سی</string>
     <string name="aether_keys_kind_all">همه</string>
-    <string name="aether_keys_lab_enroll_address">نشونی درخواست</string>
+    <string name="aether_keys_lab_enroll_address">نشونی API</string>
     <string name="aether_keys_hint_ech">نوم سرور من درخواستا WARP API قایم اکنه؛ بی کلید ECH قابل استفاده، هیچ کلید WARP درخواست نیبۊ</string>
     <string name="aether_lab_fingerprint">جا کلک</string>
-    <string name="aether_keys_invalid_enroll_address">نشونی درخواست باید یه نشونی IP یا نوم دامنه بۊ، با پورت یا بی پورت، چی 188.114.97.6:443 یا [2606:4700::1]:8443</string>
-    <string name="aether_keys_invalid_command">فرمان باید کلید ثبت کنه: --register وو پشت سرس all، wg، masque، gool یا mim</string>
+    <string name="aether_keys_invalid_enroll_address">نشونی API باید یه نشونی IP یا نوم دامنه بۊ، با پورت یا بی پورت، چی 188.114.97.6:443 یا [2606:4700::1]:8443</string>
+    <string name="aether_keys_invalid_command">فرمان باید کلید ثبت کنه: --register وو پشت سرس all، wg، masque، mim، gool-classic (WARP-in-WARP) یا gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">خروجی هسته وو کلیدا WARP ایچو نشووݩ داڌه ابۊن</string>
     <string name="aether_scan_blocked">پیش زه اسکن، اتصال Aether نه قطع کنین؛ اسکن یه تونل دوم وا کلید اتصال ایسا وا ایکنه</string>
     <string name="aether_keys_missing">کلید WARP لازم نه ندارین؛ اول اونه بگیرین</string>
@@ -691,6 +703,9 @@
     <string name="aether_chain_one_profile">یه زنجیره پروکسی فقط ایتره یه پروفایل Aether داشته بۊ</string>
     <string name="aether_exit_node_name_taken">یه پروفایل وا نوم exit-node ایچو من مسیریابی استفاده ابۊ، وو exit-node نوم outbound ـیه که هسته Aether زه ری وو بیرون وصل ابۊ؛ نوم او پروفایل نه آلشت کنین</string>
     <string name="aether_chain_hop_missing">گامی که پروفایل Aether ای زنجیره پروکسی زه ری وو بیرون وصل ابۊ ساخته نبی، وو هسته Aether بی او وو اینترنت ارسی</string>
+    <string name="config_main_outbound_missing">پروفایل انتخاب بیده ساخته نبی، وو همه ترافیک بی او مستقیم وو اینترنت ارسی؛ تنظیماتس نه درس کۊنین</string>
+    <string name="config_routing_target_unbuilt">پروفایل «%1$s» که یه قانووݩ تور جوستن ترافیک وو هونه مفرسه ساخته نبی؛ درسس کۊنین، یا قانووݩیایی که زهس استفاده اکنن نه خاموش کۊنین</string>
+    <string name="config_group_fallback_unbuilt">پروفایل «%1$s» که بارت جایگۊزین یه بونکۊ سیاسته ساخته نبی؛ درسس کۊنین، یا یه بارت جایگۊزین دیه سی بونکۊ انتخاب کنین</string>
     <string name="aether_config_single_profile">یه پیکربندی فقط ایتره زه یه پروفایل Aether استفاده کنه</string>
     <string name="aether_config_two_exits">ایچو یه هسته Aether باید وا دو جور زه ری وو بیرون وصل بۊ: همو تونل تنهایی وو پشت یه گام زنجیره پروکسی، یا پشت دو گام جدا، یا وا دو تنظیم جدا exit-node استفاده بیه</string>
     <string name="aether_custom_no_outbound">هیچ خروجی SOCKS من پیکربندی به %1$s:%2$d وصل نیبۊ؛ فرمان Aether همۊچو گوش اکنه</string>

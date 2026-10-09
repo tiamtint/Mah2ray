@@ -3,6 +3,7 @@ package com.v2ray.ang.core
 import android.util.Log
 import com.google.gson.JsonParser
 import com.v2ray.ang.R
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -92,6 +93,25 @@ class AetherCoreManagerTest {
         assertEquals("wg", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WIREGUARD), 10819), "--protocol"))
         assertEquals("gool", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL), 10819), "--protocol"))
         assertEquals("mim", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.MIM), 10819), "--protocol"))
+        // Gool is WireGuard over MASQUE to the core; WARP-in-WARP is its classic gool, asked for by name.
+        assertEquals("gool", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE), 10819), "--protocol"))
+        assertTrue("--gool-classic" in AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL), 10819))
+        assertTrue("--gool-classic" in AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL), 0, scan = true))
+        for (protocol in AetherProtocol.entries - AetherProtocol.GOOL) {
+            assertFalse("--gool-classic" in AetherCoreManager.buildArguments(profile(protocol), 10819), protocol.type)
+        }
+    }
+
+    @Test
+    fun theProtocolOfTheArgumentsOfAProfileIsTheProfiles() {
+        for (protocol in AetherProtocol.entries) {
+            for (scan in listOf(false, true)) {
+                val hopless = AetherCoreManager.buildArguments(profile(protocol), 10819, scan)
+                assertEquals(protocol, AetherCoreManager.protocolOf(hopless), "${protocol.type} scan=$scan")
+                val hops = AetherCoreManager.buildArguments(profile(protocol, outer = "162.159.192.1:443", inner = "188.114.96.1:2408"), 10819, scan)
+                assertEquals(protocol, AetherCoreManager.protocolOf(hops), "${protocol.type} hops scan=$scan")
+            }
+        }
     }
 
     @Test
@@ -101,7 +121,9 @@ class AetherCoreManagerTest {
 
         val http2 = AetherCoreManager.buildArguments(profile(transport = AetherTransport.HTTP2), 10819)
         assertTrue(http2.contains("--h2"))
+        // Off is no flag at all: the core fragments nothing unless told to, and has no flag for off.
         assertFalse(http2.contains("--fragment"))
+        assertFalse(http2.contains("--no-fragment"))
 
         val fragmented = AetherCoreManager.buildArguments(profile(transport = AetherTransport.HTTP2, fragment = true), 10819)
         assertTrue(fragmented.contains("--fragment"))
@@ -112,6 +134,12 @@ class AetherCoreManagerTest {
         )
         assertFalse(wireguard.contains("--h2"))
         assertFalse(wireguard.contains("--fragment"))
+
+        // WireGuard over MASQUE rides the MASQUE carrier chosen here, as the WireGuard inside it does.
+        val goolOverMasque = AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2, fragment = true), 10819)
+        assertTrue(goolOverMasque.contains("--h2"))
+        assertTrue(goolOverMasque.contains("--fragment"))
+        assertFalse(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2), 10819).contains("--fragment"))
 
         // Both masque-in-masque hops ride on the carrier chosen here.
         val mim = AetherCoreManager.buildArguments(profile(AetherProtocol.MIM, AetherTransport.HTTP2, fragment = true), 10819)
@@ -131,6 +159,7 @@ class AetherCoreManagerTest {
         assertEquals("5", valueAfter(arguments, "--fragment-delay"))
 
         val off = AetherCoreManager.buildArguments(tuned.copy(aetherFragment = false), 10819)
+        assertFalse(off.contains("--fragment"))
         assertFalse(off.contains("--fragment-size"))
         assertFalse(off.contains("--fragment-delay"))
 
@@ -179,6 +208,48 @@ class AetherCoreManagerTest {
         assertEquals("188.114.96.1:894", valueAfter(arguments, "--wiw-inner"))
         assertFalse(arguments.contains("--wiw-scan"))
         assertFalse(arguments.contains("--peer"))
+        assertTrue(arguments.contains("--gool-classic"))
+        assertFalse(arguments.contains("--gool-peer"))
+    }
+
+    @Test
+    fun wireGuardOverMasqueDialsItsGatewayAndItsWireGuardEndpointByTheirOwnFlags() {
+        val named = AetherCoreManager.buildArguments(
+            profile(AetherProtocol.WG_OVER_MASQUE, outer = "162.159.198.1:443", inner = "162.159.192.1:2408"),
+            10819
+        )
+        assertEquals("162.159.198.1:443", valueAfter(named, "--peer"))
+        assertEquals("162.159.192.1:2408", valueAfter(named, "--gool-peer"))
+        // No classic gool word: any of them would turn the core to WireGuard in WireGuard.
+        for (flag in listOf("--gool-classic", "--wiw-outer", "--wiw-inner", "--wiw-scan", "--mim-outer", "--mim-inner", "--mim-scan")) {
+            assertFalse(named.contains(flag), flag)
+        }
+        // The same address on both hops is no problem for the core here.
+        val shared = AetherCoreManager.buildArguments(
+            profile(AetherProtocol.WG_OVER_MASQUE, outer = "162.159.192.1:443", inner = "162.159.192.1:2408"),
+            10819
+        )
+        assertEquals("162.159.192.1:443", valueAfter(shared, "--peer"))
+        assertEquals("162.159.192.1:2408", valueAfter(shared, "--gool-peer"))
+
+        // Left blank, the gateway is scanned for and the WireGuard endpoint is the one WARP assigns.
+        val blank = AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, server = "162.159.198.1", port = "443"), 10819)
+        assertFalse(blank.contains("--peer"))
+        assertFalse(blank.contains("--gool-peer"))
+        assertFalse(blank.contains("--wiw-scan"))
+        val malformed = AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, outer = "162.159.198.1", inner = "x:2408"), 10819)
+        assertFalse(malformed.contains("--peer"))
+        assertFalse(malformed.contains("--gool-peer"))
+
+        // A scan looks for the gateway afresh and keeps the WireGuard endpoint the session dials.
+        val scan = AetherCoreManager.buildArguments(
+            profile(AetherProtocol.WG_OVER_MASQUE, outer = "162.159.198.1:443", inner = "162.159.192.1:2408"),
+            0,
+            scan = true
+        )
+        assertFalse(scan.contains("--peer"))
+        assertEquals("162.159.192.1:2408", valueAfter(scan, "--gool-peer"))
+        assertTrue(scan.contains("--no-quick-reconnect"))
     }
 
     @Test
@@ -192,6 +263,7 @@ class AetherCoreManagerTest {
     @Test
     fun goolScansForHopsItCannotUse() {
         assertTrue(AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL), 10819).contains("--wiw-scan"))
+        assertTrue(AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL), 10819).contains("--gool-classic"))
 
         val malformed = AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL, outer = "162.159.192.1"), 10819)
         assertNull(valueAfter(malformed, "--wiw-outer"))
@@ -270,6 +342,7 @@ class AetherCoreManagerTest {
         assertFalse(scan.contains("--wiw-outer"))
         assertFalse(scan.contains("--wiw-inner"))
         assertTrue(scan.contains("--wiw-scan"))
+        assertTrue(scan.contains("--gool-classic"))
     }
 
     @Test
@@ -422,7 +495,8 @@ class AetherCoreManagerTest {
     @Test
     fun theSessionProtocolIsReadFromItsArguments() {
         val gool = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:10819", "--protocol", "gool", "--scan", "balanced")
-        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(gool))
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(gool))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(gool + "--gool-classic"))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf("/data/app/lib/libaether.so", "--protocol", "wg")))
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf("/data/app/lib/libaether.so", "--protocol")))
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(emptyList()))
@@ -433,18 +507,37 @@ class AetherCoreManagerTest {
         val bin = "/data/app/lib/libaether.so"
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--wg")))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--warp")))
-        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw")))
+        // Gool is WireGuard over MASQUE, as aether 2.3.0 reads it.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wiw")))
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--gool")))
         assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--mim")))
         assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--masque-in-masque")))
         assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "mim")))
         // After --protocol the core takes other names as well, in any case; an unknown one is masque.
         assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "M2")))
-        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "warp-in-warp")))
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "warp-in-warp")))
+        // The app's own word for it is no word of the core's, which runs MASQUE on it.
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "wg-over-masque")))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "WireGuard")))
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--protocol", "something-else")))
         // The last word wins, as it does for the core.
-        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--protocol", "gool")))
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--protocol", "gool")))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "gool", "--wg")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--gool-classic", "--masque")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--gool-classic")))
+        // --gool-peer selects gool as well, WireGuard over MASQUE unless something makes it the classic one.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--gool-peer", "162.159.192.1:2408")))
+        // --gool-classic, a warp-in-warp hop or a scan of the hops makes it the classic gool, wherever they stand.
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool-classic")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool-classic", "--protocol", "gool")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-scan")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool-scan", "--protocol", "gool")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "gool", "--gool-peers", "auto")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-inner", "188.114.96.1:894")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool-peer", "162.159.192.1:2408", "--wiw-scan")))
+        // A blank value sets nothing for the core.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-outer", " ")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wiw-peers", "")))
         // A warp-in-warp hop named without a protocol selects gool; asking for a scan of the hops does not.
         assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw-outer", "162.159.192.1:2408")))
         assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw-peers", "162.159.192.1:2408,188.114.96.1:2408")))
@@ -458,6 +551,25 @@ class AetherCoreManagerTest {
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-scan")))
         assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--mim-outer", "162.159.192.1:443", "--wiw-inner", "188.114.96.1:894")))
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--masque", "--mim-outer", "162.159.192.1:443")))
+        // A blank masque-in-masque hop sets nothing either, and the core runs MASQUE.
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-outer", "")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", " ")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", " auto ")))
+        // Each hop setting is the last value given for it, as the variable the core reads: a blank one clears it.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-outer", "162.159.192.1:2408", "--wiw-outer", "")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-outer", "", "--gool-outer", "162.159.192.1:2408")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", "162.159.192.1:443,188.114.96.1:443", "--mim-scan")))
+    }
+
+    @Test
+    fun theWordsOfACommandLineFromProcKeepItsEmptyArguments() {
+        assertEquals(listOf("/data/app/lib/libaether.so", "--gool", "--wiw-outer", "", "--bind", "127.0.0.1:10819"), AetherCoreManager.nulSeparated("/data/app/lib/libaether.so\u0000--gool\u0000--wiw-outer\u0000\u0000--bind\u0000127.0.0.1:10819\u0000"))
+        // Read as the core runs: WireGuard over MASQUE, the blank hop setting nothing.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(AetherCoreManager.nulSeparated("aether\u0000--gool\u0000--wiw-outer\u0000\u0000--bind\u0000127.0.0.1:10819\u0000")))
+        assertEquals(listOf("HOME=/x", "PATTNG_AETHER_SESSION=1"), AetherCoreManager.nulSeparated("HOME=/x\u0000PATTNG_AETHER_SESSION=1\u0000"))
+        assertEquals(emptyList<String>(), AetherCoreManager.nulSeparated(""))
+        // A last word without its NUL stays.
+        assertEquals(listOf("aether", "--wg"), AetherCoreManager.nulSeparated("aether\u0000--wg"))
     }
 
     @Test
@@ -691,11 +803,20 @@ class AetherCoreManagerTest {
         assertTrue(AetherCoreManager.masqueOverHttp2(AetherProtocol.MASQUE, AetherTransport.HTTP3, AetherTor.REVERSE, AetherPsiphon.OFF))
         assertFalse(AetherCoreManager.masqueOverHttp2(AetherProtocol.MASQUE, AetherTransport.HTTP3, AetherTor.CHAIN, AetherPsiphon.CHAIN))
         assertFalse(AetherCoreManager.masqueOverHttp2(AetherProtocol.GOOL, AetherTransport.HTTP2, AetherTor.OFF, AetherPsiphon.OFF))
+        assertTrue(AetherCoreManager.masqueOverHttp2(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2, AetherTor.OFF, AetherPsiphon.OFF))
+        // Tor or Psiphon around WireGuard over MASQUE carry its MASQUE over HTTP/2.
+        assertTrue(AetherCoreManager.masqueOverHttp2(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP3, AetherTor.REVERSE, AetherPsiphon.OFF))
+        val throughTor = AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE).copy(aetherTor = "reverse"), 10819)
+        assertTrue(throughTor.contains("--tor-reverse"))
+        assertEquals("gool", valueAfter(throughTor, "--protocol"))
+        assertNull(valueAfter(throughTor, "--noize"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2), 10819), "--noize"))
+        assertEquals("aggressive", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE), 10819), "--noize"))
     }
 
     @Test
     fun theFingerprintShapesEveryMasqueTunnelAndNoOther() {
-        for (protocol in listOf(AetherProtocol.MASQUE, AetherProtocol.MIM)) {
+        for (protocol in listOf(AetherProtocol.MASQUE, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE)) {
             for (transport in AetherTransport.entries) {
                 // Chrome's rule is named, whatever the core's default; BoringSSL orders it by the phone's AES
                 // instructions as it does the TLS 1.3 suites. Chrome sends GREASE.
@@ -741,6 +862,7 @@ class AetherCoreManagerTest {
             aetherEch = true,
             aetherEchDns = "--upstream",
             aetherEchDomain = "--bind",
+            aetherMasqueSni = "--upstream",
         )
         val arguments = AetherCoreManager.buildArguments(crafted, 10819)
         assertFalse("--upstream" in arguments, arguments.toString())
@@ -748,6 +870,7 @@ class AetherCoreManagerTest {
         assertNull(valueAfter(arguments, "--exit-loc"))
         assertEquals("udp://1.1.1.1", valueAfter(arguments, "--ech-dns"))
         assertEquals("cloudflare-ech.com", valueAfter(arguments, "--ech-domain"))
+        assertEquals("www.cloudflare.com", valueAfter(arguments, "--masque-sni"))
         assertEquals("127.0.0.1:10819", valueAfter(arguments, "--bind"))
         // The core of the session is still told to dial out through Xray.
         val session = AetherCore.of(crafted, 10819).through(10822)
@@ -774,6 +897,44 @@ class AetherCoreManagerTest {
         val bridged = AetherCoreManager.buildArguments(tor, 10819)
         assertFalse("--upstream" in bridged, bridged.toString())
         assertEquals(listOf("obfs4 192.0.2.1:443 FP cert=x iat-mode=0"), valuesAfter(bridged, "--tor-bridge"))
+    }
+
+    @Test
+    fun theServerNameOfTheMasqueHandshakesReachesTheCoreOverMasqueAlone() {
+        // The default is named as well, so that the command shows what is sent.
+        assertEquals("www.cloudflare.com", valueAfter(AetherCoreManager.buildArguments(profile(), 10819), "--masque-sni"))
+        val blank = profile().copy(aetherMasqueSni = " ")
+        assertEquals("www.cloudflare.com", valueAfter(AetherCoreManager.buildArguments(blank, 10819), "--masque-sni"))
+
+        // A name of the profile's own, trimmed, on either carrier, on every protocol over MASQUE, and in a scan.
+        val named = profile().copy(aetherMasqueSni = " consumer-masque.cloudflareclient.com ")
+        val cases = listOf(
+            named,
+            named.copy(aetherTransport = AetherTransport.HTTP2.type),
+            named.copy(aetherProtocol = AetherProtocol.MIM.type),
+            named.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type),
+            named.copy(aetherTor = AetherTor.REVERSE.type),
+            named.copy(aetherPsiphon = AetherPsiphon.CHAIN.type),
+        )
+        for (case in cases) {
+            for (scan in listOf(false, true)) {
+                val arguments = AetherCoreManager.buildArguments(case, 10819, scan = scan)
+                assertEquals("consumer-masque.cloudflareclient.com", valueAfter(arguments, "--masque-sni"), arguments.toString())
+                assertEquals(1, arguments.count { it == "--masque-sni" }, arguments.toString())
+            }
+        }
+
+        // WireGuard takes none, nor does a core without a WARP tunnel.
+        val without = listOf(
+            named.copy(aetherProtocol = AetherProtocol.WIREGUARD.type),
+            named.copy(aetherProtocol = AetherProtocol.GOOL.type),
+            named.copy(aetherPsiphon = AetherPsiphon.ONLY.type),
+            named.copy(aetherTor = AetherTor.ONLY.type),
+        )
+        for (case in without) {
+            val arguments = AetherCoreManager.buildArguments(case, 10819)
+            assertFalse("--masque-sni" in arguments, arguments.toString())
+        }
     }
 
     @Test
@@ -845,7 +1006,8 @@ class AetherCoreManagerTest {
         assertEquals(listOf("PSIPHON", "MASQUE"), path("--psiphon-reverse"))
         assertEquals(listOf("MASQUE", "TOR"), path("--tor"))
         assertEquals(listOf("TOR", "MIM"), path("--mim", "--tor-reverse"))
-        assertEquals(listOf("TOR", "GOOL", "PSIPHON"), path("--gool", "--psiphon", "--tor-reverse"))
+        assertEquals(listOf("TOR", "WG_OVER_MASQUE", "PSIPHON"), path("--gool", "--psiphon", "--tor-reverse"))
+        assertEquals(listOf("GOOL", "TOR"), path("--protocol", "gool", "--gool-classic", "--tor"))
         assertEquals(listOf("PSIPHON", "WIREGUARD", "TOR"), path("--wg", "--tor", "--psiphon-reverse"))
         // A carrier alone is the whole tunnel, whatever else is written; Tor alone comes first, as it does for the core.
         assertEquals(listOf("PSIPHON"), path("--wg", "--psiphon-only"))
@@ -1182,6 +1344,40 @@ class AetherCoreManagerTest {
                 AetherCoreManager.exitConfiguration(AetherExit.through(listOf(profile())), configuration, "warning"),
             )
         }
+    }
+
+    @Test
+    fun theExitOfACoreOfItsOwnOpensWithTheOutboundOfItsNode() {
+        val ech = """{"tag": "ech-query", "protocol": "freedom"}"""
+        val node = V2rayConfig.OutboundBean(
+            tag = "proxy",
+            protocol = "vless",
+            streamSettings = V2rayConfig.OutboundBean.StreamSettingsBean(
+                network = "tcp",
+                security = "tls",
+                tlsSettings = V2rayConfig.OutboundBean.StreamSettingsBean.TlsSettingsBean(echConfigList = "AEX+DQ", echOutbound = ech),
+            ),
+        )
+        val opened = JsonParser.parseString(
+            AetherCoreManager.exitConfiguration(AetherExit(node = "germany"), configuration = null, logLevel = "warning") {
+                if (it == "germany") ExitNodeOutbound.Built(node) else ExitNodeOutbound.NotFound
+            }
+        ).asJsonObject
+        val outbounds = opened.getAsJsonArray("outbounds").map { it.asJsonObject }
+        // The node's outbound under the tag of the exit-node, and its ECH outbound linked to it, as in a session.
+        assertEquals(listOf("exit-node", "ech-query"), outbounds.map { it.get("tag").asString })
+        assertEquals("vless", outbounds.first().get("protocol").asString)
+        val tls = outbounds.first().getAsJsonObject("streamSettings").getAsJsonObject("tlsSettings")
+        assertEquals("ech-query", tls.getAsJsonObject("echSockopt").get("dialerProxy").asString)
+        assertEquals("warning", opened.getAsJsonObject("log").get("loglevel").asString)
+
+        // A node that gives no outbound opens no exit: the core would reach the internet without it.
+        for (problem in listOf(ExitNodeOutbound.NotFound, ExitNodeOutbound.SameName, ExitNodeOutbound.NoOutbound)) {
+            assertNull(AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), configuration = null, logLevel = "warning") { problem })
+        }
+        // A configuration under test that has the exit-node, a chain's hop, keeps it, as for any exit.
+        val chained = """{"outbounds": [{"tag": "proxy", "protocol": "socks"}, {"tag": "exit-node", "protocol": "trojan"}]}"""
+        assertEquals(chained, AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), chained, "warning") { ExitNodeOutbound.NotFound })
     }
 
     @Test

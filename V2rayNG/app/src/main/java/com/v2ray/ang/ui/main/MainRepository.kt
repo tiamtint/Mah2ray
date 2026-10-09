@@ -132,6 +132,8 @@ class MainRepository(
     override fun getString(resId: Int, vararg formatArgs: Any): String =
         localizedContext.getString(resId, *formatArgs)
 
+    override fun getStringArray(resId: Int): List<String> = localizedContext.resources.getStringArray(resId).toList()
+
     override fun getSubscriptions(): List<SubscriptionCache> {
         val result = mutableListOf<SubscriptionCache>()
         if (isGroupAllDisplayEnabled()) {
@@ -162,10 +164,10 @@ class MainRepository(
     override fun decodeAffiliationInfo(guid: String): ServerAffiliationInfo? =
         MmkvManager.decodeServerAffiliationInfo(guid)
 
-    override fun encodeServerList(guids: List<String>, groupId: String) =
-        MmkvManager.encodeServerList(ArrayList(guids), groupId)
+    override fun moveServer(groupId: String, fromGuid: String, toGuid: String) =
+        MmkvManager.tryMoveServer(groupId, fromGuid, toGuid)
 
-    override fun removeServer(guid: String) = MmkvManager.removeServer(guid)
+    override fun removeServer(guid: String) = MmkvManager.tryRemoveServer(guid)
 
     override fun removeAllServer(): Int = MmkvManager.removeAllServer()
 

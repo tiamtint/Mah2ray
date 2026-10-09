@@ -3,13 +3,12 @@ package com.v2ray.ang.core
 import android.content.Context
 import android.util.Log
 import androidx.annotation.StringRes
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.AetherEndpoint
 import com.v2ray.ang.dto.AetherRange
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -25,7 +24,6 @@ import com.v2ray.ang.enums.AetherTorRelays
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.CancellationException
@@ -314,7 +312,10 @@ object AetherCoreManager {
         return buildList {
             addAll(listOf("--bind", "${AppConfig.LOOPBACK}:$own"))
             if (psiphon != AetherPsiphon.ONLY && tor != AetherTor.ONLY) {
-                addAll(listOf("--protocol", protocol.type))
+                addAll(listOf("--protocol", protocol.core))
+                // gool has meant WireGuard over MASQUE since aether 2.3.0; WARP-in-WARP is the classic gool, asked for
+                // by name rather than left to the hop settings that select it as well.
+                if (protocol == AetherProtocol.GOOL) add("--gool-classic")
                 addAll(listOf("--scan", AetherScanMode.fromString(profile.aetherScanMode).type))
                 // Automatic obfuscation is the core's own choice per protocol, so nothing is said about it; MASQUE over
                 // HTTP/2 takes none at all, since obfuscation shapes the UDP of WireGuard and HTTP/3 alone.
@@ -327,8 +328,15 @@ object AetherCoreManager {
                 // A scan keeps the exit rule as well, so that it ends on an endpoint the session will accept.
                 settingValue(profile.aetherExitLoc)?.let { addAll(listOf("--exit-loc", it)) }
 
+                // The server name the MASQUE handshakes put in their ClientHello, on either carrier and both hops, the
+                // default named as well, so that the command shows what is sent; the HTTP host stays the core's.
+                if (protocol.overMasque) {
+                    addAll(listOf("--masque-sni", settingValue(profile.aetherMasqueSni) ?: AppConfig.AETHER_MASQUE_SNI))
+                }
                 if (protocol.overMasque && transport == AetherTransport.HTTP2) {
                     add("--h2")
+                    // The ClientHello of the MASQUE handshake, and of the calls to the WARP API the core makes for a
+                    // key it does not have; without the flag the core sends both whole.
                     if (profile.aetherFragment == true) {
                         add("--fragment")
                         AetherRange.parse(profile.aetherFragmentSize, AetherRange.FRAGMENT_SIZE)
@@ -348,7 +356,13 @@ object AetherCoreManager {
                 // over HTTP/3, which carries TLS 1.3 alone, only its GREASE shows.
                 if (protocol.overMasque) addAll(AetherFingerprint.fromString(profile.aetherFingerprint).arguments)
 
-                if (protocol.twoHops) {
+                if (protocol == AetherProtocol.WG_OVER_MASQUE) {
+                    // The outer hop is a MASQUE gateway, which a scan looks for afresh. The inner one is the WireGuard
+                    // endpoint dialled inside the tunnel, the one WARP assigned the key unless one is named; no scan looks
+                    // for it, so a scan keeps the profile's own and finds a gateway that works with it.
+                    AetherEndpoint.parse(profile.aetherWiwOuter).takeUnless { scan }?.let { addAll(listOf("--peer", it.toString())) }
+                    AetherEndpoint.parse(profile.aetherWiwInner)?.let { addAll(listOf("--gool-peer", it.toString())) }
+                } else if (protocol.twoHops) {
                     val hop = if (protocol == AetherProtocol.MIM) "--mim" else "--wiw"
                     val outer = AetherEndpoint.parse(profile.aetherWiwOuter).takeUnless { scan }
                     val inner = AetherEndpoint.parse(profile.aetherWiwInner).takeUnless { scan }
@@ -589,7 +603,13 @@ object AetherCoreManager {
         turns = exitTurns,
         open = {
             val logLevel = MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL) ?: DEFAULT_XRAY_LOG_LEVEL
-            openExit(context, exitConfiguration(exit, configuration, logLevel), source)
+            val exitConfiguration = exitConfiguration(exit, configuration, logLevel)
+            if (exitConfiguration == null) {
+                LogUtil.w(AppConfig.TAG, "AetherCore: the exit-node $source dials out through gives no outbound: no profile or several have its name, it gives none, or its ECH outbound is unusable; no core runs")
+                null
+            } else {
+                openExit(context, exitConfiguration, source)
+            }
         },
         close = { CoreNativeManager.closeExit() },
     ) { exitPort ->
@@ -685,14 +705,28 @@ object AetherCoreManager {
      * The configuration the exit of a core of its own opens with, whose outbound tagged exit-node the
      * core dials out by: [configuration], the configuration under test, when it has such an outbound,
      * as that of a core dialling out through a hop of its proxy chain has, or a custom configuration
-     * exported from a session; otherwise one with the plain exit-node of [exit] alone, which logs at
-     * [logLevel], the Xray log level of the app, should it start the shared Xray of the process.
+     * exported from a session; otherwise one with the exit-node of [exit] alone, see
+     * [CoreOutboundBuilder.toOutboundAetherExit], with the ECH outbound of a node linked as in a session,
+     * which logs at [logLevel], the Xray log level of the app, should it start the shared Xray of the
+     * process. Null when the node [nodeOutbound] looks up gives none, see [ExitNodeOutbound.Problem], or its
+     * ECH outbound is unusable.
      */
-    internal fun exitConfiguration(exit: AetherExit, configuration: String?, logLevel: String): String =
-        configuration?.takeIf(::hasExitNode) ?: JsonObject().apply {
-            add("log", JsonObject().apply { addProperty("loglevel", logLevel) })
-            add("outbounds", JsonArray().apply { add(JsonParser.parseString(JsonUtil.toJson(CoreOutboundBuilder.toOutboundAetherExit(exit)))) })
-        }.toString()
+    internal fun exitConfiguration(
+        exit: AetherExit,
+        configuration: String?,
+        logLevel: String,
+        nodeOutbound: (String) -> ExitNodeOutbound = CoreOutboundBuilder::toOutboundOfNode,
+    ): String? {
+        configuration?.takeIf(::hasExitNode)?.let { return it }
+        val exitNode = CoreOutboundBuilder.toOutboundAetherExit(exit, nodeOutbound) ?: return null
+        val config = V2rayConfig(
+            log = V2rayConfig.LogBean(loglevel = logLevel),
+            inbounds = arrayListOf(),
+            outbounds = arrayListOf(exitNode),
+            routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+        )
+        return (EchOutbound.serialize(config) as? EchOutbound.Result.Done)?.content
+    }
 
     /** Whether the configuration [content] has an outbound tagged exit-node. */
     private fun hasExitNode(content: String): Boolean = try {
@@ -1047,10 +1081,10 @@ object AetherCoreManager {
 
     /**
      * The tunnel [argv] runs, as the names of its parts from the outside in: a carrier around the
-     * tunnel, the WARP protocol, a carrier inside it. A carrier alone is the whole tunnel, and Tor
-     * alone comes before Psiphon alone, as the core runs it before it looks at Psiphon.
+     * tunnel, the WARP protocol, which [label] names, a carrier inside it. A carrier alone is the whole
+     * tunnel, and Tor alone comes before Psiphon alone, as the core runs it before it looks at Psiphon.
      */
-    internal fun pathOf(argv: List<String>): List<String> {
+    internal fun pathOf(argv: List<String>, label: (AetherProtocol) -> String = AetherProtocol::name): List<String> {
         val tor = torModeOf(argv)
         val psiphon = psiphonModeOf(argv)
         if (tor == AetherTor.ONLY) return listOf(TOR_NAME)
@@ -1058,7 +1092,7 @@ object AetherCoreManager {
         return buildList {
             if (tor == AetherTor.REVERSE) add(TOR_NAME)
             if (psiphon == AetherPsiphon.REVERSE) add(PSIPHON_NAME)
-            add(protocolOf(argv).name)
+            add(label(protocolOf(argv)))
             if (psiphon == AetherPsiphon.CHAIN) add(PSIPHON_NAME)
             if (tor == AetherTor.CHAIN) add(TOR_NAME)
         }
@@ -1067,6 +1101,16 @@ object AetherCoreManager {
     /** The carriers as [pathOf] names them, beside the names of [AetherProtocol]. */
     private const val TOR_NAME = "TOR"
     private const val PSIPHON_NAME = "PSIPHON"
+
+    /**
+     * PattNG: whether what the app sends through the tunnel [argv] runs leaves it through WARP, the last part of
+     * [pathOf]: not through Tor or Psiphon, which come last when they run inside the tunnel or are the whole of it.
+     */
+    internal fun leavesThroughWarp(argv: List<String>): Boolean = leavesThroughWarp(torModeOf(argv), psiphonModeOf(argv))
+
+    /** [leavesThroughWarp] with Tor standing at [tor] and Psiphon at [psiphon]. */
+    internal fun leavesThroughWarp(tor: AetherTor, psiphon: AetherPsiphon): Boolean =
+        (tor == AetherTor.OFF || tor == AetherTor.REVERSE) && (psiphon == AetherPsiphon.OFF || psiphon == AetherPsiphon.REVERSE)
 
     /** A core process is stale when its owner is known to be dead or it holds the address we are about to bind. */
     internal fun isStale(argv: List<String>, ownerAlive: Boolean?, bindAddress: String?): Boolean =
@@ -1127,36 +1171,64 @@ object AetherCoreManager {
     /**
      * The protocol [argv] selects, read the way the core reads it: the last of --protocol and the
      * protocol flags wins, a hop named without any of them selects the two-hop protocol it belongs
-     * to, warp-in-warp before masque-in-masque, and nothing at all is masque.
+     * to, warp-in-warp before masque-in-masque, and nothing at all is masque. Gool is WireGuard over
+     * MASQUE unless --gool-classic or a warp-in-warp hop setting, a scan of the hops included, makes
+     * it WARP-in-WARP, the classic gool, wherever they stand.
      */
     internal fun protocolOf(argv: List<String>): AetherProtocol {
         var chosen: AetherProtocol? = null
-        var wiwHopNamed = false
-        var mimHopNamed = false
+        var classicMode = false
+        // Each hop setting is a variable of the core's environment, so the last value given counts, a blank one included.
+        val hops = HashMap<HopSetting, String>()
         for ((index, word) in argv.withIndex()) {
+            val value = argv.getOrNull(index + 1)
             when (word) {
-                "--protocol" -> chosen = argv.getOrNull(index + 1)?.let(::protocolNamed) ?: chosen
+                "--protocol" -> chosen = value?.let(::protocolNamed) ?: chosen
                 "--masque" -> chosen = AetherProtocol.MASQUE
                 "--wg", "--wireguard", "--warp" -> chosen = AetherProtocol.WIREGUARD
-                "--gool", "--wiw" -> chosen = AetherProtocol.GOOL
+                "--gool", "--wiw", "--gool-peer" -> chosen = AetherProtocol.WG_OVER_MASQUE
+                "--gool-classic" -> {
+                    chosen = AetherProtocol.WG_OVER_MASQUE
+                    classicMode = true
+                }
                 "--mim", "--masque-in-masque" -> chosen = AetherProtocol.MIM
-                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> wiwHopNamed = true
-                "--wiw-peers", "--gool-peers" -> if (namesHops(argv.getOrNull(index + 1))) wiwHopNamed = true
-                "--mim-outer", "--mim-inner" -> mimHopNamed = true
-                "--mim-peers" -> if (namesHops(argv.getOrNull(index + 1))) mimHopNamed = true
+                "--wiw-outer", "--gool-outer", "--outer-peer" -> value?.let { hops[HopSetting.WIW_OUTER] = it }
+                "--wiw-inner", "--gool-inner", "--inner-peer" -> value?.let { hops[HopSetting.WIW_INNER] = it }
+                "--wiw-peers", "--gool-peers" -> value?.let { hops[HopSetting.WIW_PEERS] = it }
+                "--wiw-scan", "--gool-scan" -> hops[HopSetting.WIW_PEERS] = "auto"
+                "--mim-outer" -> value?.let { hops[HopSetting.MIM_OUTER] = it }
+                "--mim-inner" -> value?.let { hops[HopSetting.MIM_INNER] = it }
+                "--mim-peers" -> value?.let { hops[HopSetting.MIM_PEERS] = it }
+                "--mim-scan" -> hops[HopSetting.MIM_PEERS] = "auto"
             }
         }
-        return chosen ?: when {
-            wiwHopNamed -> AetherProtocol.GOOL
-            mimHopNamed -> AetherProtocol.MIM
-            else -> AetherProtocol.MASQUE
+        // A blank value sets nothing for the core; a list of peers names hops unless it asks for a scan.
+        fun given(setting: HopSetting) = hops[setting]?.trim()?.takeIf { it.isNotEmpty() }
+        fun pinned(outer: HopSetting, inner: HopSetting, peers: HopSetting) =
+            given(outer) != null || given(inner) != null || namesHops(given(peers))
+        val classicGool = classicMode || given(HopSetting.WIW_OUTER) != null || given(HopSetting.WIW_INNER) != null || given(HopSetting.WIW_PEERS) != null
+        return when (chosen) {
+            AetherProtocol.WG_OVER_MASQUE -> if (classicGool) AetherProtocol.GOOL else AetherProtocol.WG_OVER_MASQUE
+            null -> when {
+                pinned(HopSetting.WIW_OUTER, HopSetting.WIW_INNER, HopSetting.WIW_PEERS) -> AetherProtocol.GOOL
+                pinned(HopSetting.MIM_OUTER, HopSetting.MIM_INNER, HopSetting.MIM_PEERS) -> AetherProtocol.MIM
+                else -> AetherProtocol.MASQUE
+            }
+
+            else -> chosen
         }
     }
 
-    /** The protocol the core selects for [name] after --protocol, under any of the names it accepts. */
+    /** The hop settings [protocolOf] reads, each the variable of the core's environment its flags set. */
+    private enum class HopSetting { WIW_OUTER, WIW_INNER, WIW_PEERS, MIM_OUTER, MIM_INNER, MIM_PEERS }
+
+    /**
+     * The protocol the core selects for [name] after --protocol, under any of the names it accepts; gool is WireGuard
+     * over MASQUE until [protocolOf] finds what makes it the classic one.
+     */
     private fun protocolNamed(name: String): AetherProtocol = when (name.trim().lowercase(Locale.US)) {
         "wg", "wireguard" -> AetherProtocol.WIREGUARD
-        "gool", "wiw", "warp-in-warp", "warpinwarp" -> AetherProtocol.GOOL
+        "gool", "wiw", "warp-in-warp", "warpinwarp" -> AetherProtocol.WG_OVER_MASQUE
         "mim", "m2", "masque-in-masque", "masqueinmasque" -> AetherProtocol.MIM
         else -> AetherProtocol.MASQUE
     }
@@ -1180,12 +1252,19 @@ object AetherCoreManager {
         environ.firstOrNull { it.startsWith("$EXIT_ENV=") }?.substringAfter('=')?.takeIf { it.isNotEmpty() }
 
     private fun readNulSeparated(file: File): List<String>? = try {
-        file.readBytes().toString(Charsets.UTF_8).split('\u0000').filter { it.isNotEmpty() }
+        nulSeparated(file.readBytes().toString(Charsets.UTF_8))
     } catch (_: IOException) {
         null
     } catch (_: SecurityException) {
         null
     }
+
+    /**
+     * The words of [text], a command line or an environment as /proc gives them, each ended by a NUL: an empty word
+     * stays, as an empty argument does in the command, which the word after a flag may be.
+     */
+    internal fun nulSeparated(text: String): List<String> =
+        text.split('\u0000').let { words -> if (words.last().isEmpty()) words.dropLast(1) else words }
 
     private fun binary(context: Context): File =
         File(context.applicationInfo.nativeLibraryDir, BINARY_NAME)

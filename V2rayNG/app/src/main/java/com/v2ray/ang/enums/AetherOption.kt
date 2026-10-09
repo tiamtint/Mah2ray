@@ -2,17 +2,32 @@ package com.v2ray.ang.enums
 
 import java.util.Locale
 
-enum class AetherProtocol(val type: String) {
+/** A WARP protocol: [type] is what a profile and a link hold, [core] the word the core's --protocol takes for it. */
+enum class AetherProtocol(val type: String, val core: String = type) {
     MASQUE("masque"),
     WIREGUARD("wg"),
-    GOOL("gool"),
-    MIM("mim");
 
-    /** Whether MASQUE carries the tunnel, which then uses the MASQUE transport, fragmentation and key. */
-    val overMasque: Boolean get() = this == MASQUE || this == MIM
+    /** WARP-in-WARP: WireGuard carried in WireGuard, the gool the core has called classic since aether 2.3.0. */
+    GOOL("gool"),
+    MIM("mim"),
+
+    /**
+     * WireGuard carried inside a MASQUE tunnel, the gool of aether 2.3.0: its WireGuard key is registered through the
+     * MASQUE tunnel, from inside WARP, so the traffic leaves from an address abroad.
+     */
+    WG_OVER_MASQUE("wg-over-masque", "gool");
+
+    /**
+     * Whether MASQUE carries the tunnel, which then uses the MASQUE transport, fragmentation and key, and goes
+     * through Tor or Psiphon around it, which carry TCP alone, over HTTP/2.
+     */
+    val overMasque: Boolean get() = this == MASQUE || this == MIM || this == WG_OVER_MASQUE
 
     /** Whether the tunnel is two hops, an outer and an inner one, in place of one endpoint. */
-    val twoHops: Boolean get() = this == GOOL || this == MIM
+    val twoHops: Boolean get() = this == GOOL || this == MIM || this == WG_OVER_MASQUE
+
+    /** Whether the two hops must be different addresses, as the core requires of WARP-in-WARP and MASQUE-in-MASQUE. */
+    val distinctHops: Boolean get() = this == GOOL || this == MIM
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: WIREGUARD
@@ -45,7 +60,7 @@ enum class AetherScanMode(val type: String) {
 
 /**
  * The obfuscation profile, named the way the core names it. [AUTO] leaves the choice to the core,
- * which takes firewall for MASQUE and balanced for WireGuard and gool.
+ * which takes firewall for the tunnels over MASQUE and balanced for WireGuard and WARP-in-WARP.
  */
 enum class AetherObfuscation(val type: String) {
     AUTO("auto"),
@@ -186,15 +201,21 @@ enum class AetherTorRelays(val type: String) {
 }
 
 /**
- * Which WARP keys a registration gets, named the way the core's --register names them: every key, or the keys of one
- * protocol, both hops' keys for a two-hop one.
+ * Which WARP keys a registration gets: every key, or the keys of one protocol, both hops' keys for a two-hop one.
+ * [type] is the protocol's own value, which the WARP keys page stores; [register] is the word the core's --register
+ * takes for those keys.
  */
-enum class AetherKeyKind(val type: String) {
-    ALL("all"),
-    WIREGUARD("wg"),
-    MASQUE("masque"),
-    GOOL("gool"),
-    MIM("mim");
+enum class AetherKeyKind(val type: String, val register: String) {
+    ALL("all", "all"),
+    WIREGUARD("wg", "wg"),
+    MASQUE("masque", "masque"),
+
+    /** WARP-in-WARP, the older gool: both WireGuard hops' keys, which the core registers as gool-classic. */
+    GOOL("gool", "gool-classic"),
+    MIM("mim", "mim"),
+
+    /** WireGuard over MASQUE, the gool of the core's --gool: the MASQUE key and the WireGuard key it carries inside. */
+    WG_OVER_MASQUE("wg-over-masque", "gool");
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: ALL
@@ -204,8 +225,9 @@ enum class AetherKeyKind(val type: String) {
             "all" -> ALL
             "wg", "wireguard", "warp" -> WIREGUARD
             "masque" -> MASQUE
-            "gool", "wiw", "warp-in-warp" -> GOOL
+            "gool-classic", "wiw", "warp-in-warp" -> GOOL
             "mim", "masque-in-masque" -> MIM
+            "gool", "wg-over-masque" -> WG_OVER_MASQUE
             else -> null
         }
     }

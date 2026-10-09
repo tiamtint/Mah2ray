@@ -8,12 +8,15 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.ui.base.BaseViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,12 +35,34 @@ sealed interface AetherScanState {
 
 /** What a check of the WARP keys a profile needs ends with, for the screen to act on once. */
 sealed interface AetherKeysCheck {
-    /** Every key the profile needs is there: the save goes on. */
-    data object SaveReady : AetherKeysCheck
+    /**
+     * Every key [profile], the profile checked, needs is there: the save goes on, while the screen holds [profile] still;
+     * one edited while the check ran is checked in its turn.
+     */
+    data class SaveReady(val profile: ProfileItem) : AetherKeysCheck
 
-    /** A key the profile needs, or its scan when [scan], is missing: the screen asks whether to get it first. */
-    data class Missing(val scan: Boolean) : AetherKeysCheck
+    /**
+     * A key [profile] needs, or its scan when [scan], is missing: the screen asks whether to get it first. Going on
+     * without it holds for [profile] alone; one edited since is checked in its turn.
+     */
+    data class Missing(val scan: Boolean, val profile: ProfileItem) : AetherKeysCheck
+
+    /** The profile cannot be saved, for [message], whose arguments are [args]: the screen tells it. */
+    data class Refused(@StringRes val message: Int, val args: List<String>) : AetherKeysCheck
 }
+
+/**
+ * PattNG: whether the screen, holding [current], holds still [checked], the profile a check of its keys was made on, as a
+ * save would store them on [listenPort], the Aether listen port the screen holds, normalized, see [AetherFmt.normalize]:
+ * a field the screen fills back in with its default when its activity is recreated, as a cleared ECH resolver, is no
+ * edit, nor is the time a new profile was added, which the screen sets anew then.
+ */
+internal fun holdsChecked(current: ProfileItem, checked: ProfileItem, listenPort: Int): Boolean =
+    savedAs(current, listenPort) == savedAs(checked.copy(addedTime = current.addedTime), listenPort)
+
+/** [profile] as a save stores it on [listenPort], normalized on a copy, see [AetherFmt.normalize]. */
+private fun savedAs(profile: ProfileItem, listenPort: Int): ProfileItem =
+    profile.copy().also { AetherFmt.normalize(it, listenPort = listenPort) }
 
 sealed interface AetherLogText {
     data class Raw(val value: String) : AetherLogText
@@ -74,6 +99,13 @@ class ServerAetherViewModel(
     private val _listenPort = MutableStateFlow(AppConfig.PORT_AETHER_SOCKS.toInt())
     val listenPort: StateFlow<Int> = _listenPort.asStateFlow()
 
+    /**
+     * The loopback ports the core of a profile cannot listen on, see [AetherEditorSource.takenPorts]; none until they are
+     * read from the settings, in which case a session's start still refuses a port that is taken.
+     */
+    private val _takenPorts = MutableStateFlow<Set<Int>>(emptySet())
+    val takenPorts: StateFlow<Set<Int>> = _takenPorts.asStateFlow()
+
     private val _scanState = MutableStateFlow<AetherScanState>(AetherScanState.Idle)
     val scanState: StateFlow<AetherScanState> = _scanState.asStateFlow()
 
@@ -87,8 +119,15 @@ class ServerAetherViewModel(
     private val _keysCheck = MutableStateFlow<AetherKeysCheck?>(null)
     val keysCheck: StateFlow<AetherKeysCheck?> = _keysCheck.asStateFlow()
 
+    /** The profiles the core can dial out through in place of freedom; null until they are read. */
+    private val _exitNodes = MutableStateFlow<List<AetherExitNode>?>(null)
+    val exitNodes: StateFlow<List<AetherExitNode>?> = _exitNodes.asStateFlow()
+
     private val nextLogId = AtomicLong()
     private var scanJob: Job? = null
+
+    /** The check of the keys of a profile the screen asked for last, see [checkKeysBeforeSave]. */
+    private var keysCheckJob: Job? = null
     private var reportedIdentity: AetherIdentityStatus? = null
 
     private val isBusy: Boolean
@@ -100,6 +139,8 @@ class ServerAetherViewModel(
         viewModelScope.launch { _isTorTransportsAvailable.value = source.isTorTransportsAvailable() }
         viewModelScope.launch { _psiphonRegions.value = source.psiphonRegions() }
         viewModelScope.launch { _listenPort.value = source.listenPort() }
+        viewModelScope.launch { _takenPorts.value = source.takenPorts() }
+        viewModelScope.launch { _exitNodes.value = source.exitNodes() }
         refreshSession()
     }
 
@@ -124,11 +165,21 @@ class ServerAetherViewModel(
                     append(Log.WARN, AetherLogText.Resource(R.string.aether_scan_blocked))
                     return@launch
                 }
+                // The profile chosen as the exit-node may be renamed or gone since the screen opened, or share its name with
+                // another by now; the scan would reach WARP without it.
+                val node = profile.aetherExitNode?.trim().orEmpty()
+                if (node.isNotEmpty()) {
+                    (source.findExitNode(node) as? ExitNodeOutbound.Problem)?.let { problem ->
+                        _scanState.value = AetherScanState.Idle
+                        append(Log.ERROR, AetherLogText.Resource(problem.message, listOf(node)))
+                        return@launch
+                    }
+                }
                 if (!anyway) {
                     val needed = AetherIdentityManager.filesNeededBy(AetherCoreManager.buildArguments(profile, 0, scan = true))
                     if (source.missingKeys(needed).isNotEmpty()) {
                         _scanState.value = AetherScanState.Idle
-                        _keysCheck.value = AetherKeysCheck.Missing(scan = true)
+                        _keysCheck.value = AetherKeysCheck.Missing(scan = true, profile = profile)
                         return@launch
                     }
                 }
@@ -161,16 +212,33 @@ class ServerAetherViewModel(
     /**
      * Looks whether the WARP keys [profile] needs are there before it is saved: [keysCheck] then says
      * [AetherKeysCheck.SaveReady], or [AetherKeysCheck.Missing] for the screen to ask first. A profile that
-     * runs Psiphon or Tor alone needs none.
+     * runs Psiphon or Tor alone needs none. The profile it names as its exit-node is looked up first, as the
+     * session will: one no profile, or several, have the name of by now, or one that gives no outbound, is
+     * [AetherKeysCheck.Refused]. PattNG: the outcome carries [held], the profile as the screen held it when it asked,
+     * which [profile] is normalized from, so that the screen can tell whether it holds that one still.
      */
-    fun checkKeysBeforeSave(profile: ProfileItem) {
-        viewModelScope.launch {
+    fun checkKeysBeforeSave(profile: ProfileItem, held: ProfileItem = profile) {
+        // PattNG: a check a later one replaces, or one the screen has moved on from, would act on what it holds no more.
+        keysCheckJob?.cancel()
+        keysCheckJob = viewModelScope.launch {
+            val node = profile.aetherExitNode?.trim().orEmpty()
+            if (node.isNotEmpty()) {
+                (source.findExitNode(node) as? ExitNodeOutbound.Problem)?.let { problem ->
+                    _keysCheck.value = AetherKeysCheck.Refused(problem.message, listOf(node))
+                    return@launch
+                }
+            }
             val needed = AetherIdentityManager.filesNeededBy(AetherCore.of(profile, _listenPort.value).arguments)
-            _keysCheck.value = if (source.missingKeys(needed).isEmpty()) AetherKeysCheck.SaveReady else AetherKeysCheck.Missing(scan = false)
+            _keysCheck.value = if (source.missingKeys(needed).isEmpty()) {
+                AetherKeysCheck.SaveReady(held)
+            } else {
+                AetherKeysCheck.Missing(scan = false, profile = held)
+            }
         }
     }
 
     fun onKeysCheckHandled() {
+        keysCheckJob?.cancel()
         _keysCheck.value = null
     }
 
@@ -241,7 +309,7 @@ class ServerAetherViewModel(
                 keyLine(status.primary, R.string.aether_log_wireguard_key_ready, R.string.aether_log_wireguard_key_missing)
             )
 
-            AetherProtocol.GOOL, AetherProtocol.MIM -> listOf(
+            AetherProtocol.GOOL, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE -> listOf(
                 keyLine(status.primary, R.string.aether_log_outer_key_ready, R.string.aether_log_outer_key_missing),
                 keyLine(status.secondary, R.string.aether_log_inner_key_ready, R.string.aether_log_inner_key_missing),
             )

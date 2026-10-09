@@ -158,6 +158,9 @@ class AetherFmtTest {
             AetherFmt.Problem.PSIPHON_NEEDS_MASQUE,
             AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherPsiphon = "reverse" })
         )
+        // WireGuard over MASQUE dials MASQUE alone, with its WireGuard inside that tunnel.
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherPsiphon = "reverse" }))
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherPsiphon = "chain" }))
         // WireGuard inside Psiphon is fine: Psiphon carries the tunnel only the other way round.
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherPsiphon = "chain" }))
 
@@ -251,6 +254,7 @@ class AetherFmtTest {
             AetherFmt.Problem.TOR_NEEDS_MASQUE,
             AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherTor = "reverse" })
         )
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherTor = "reverse" }))
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MIM.type; aetherTor = "reverse" }))
         // Inside the tunnel or alone, Tor does not care what carries WARP.
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherTor = "chain" }))
@@ -484,6 +488,109 @@ class AetherFmtTest {
         assertNull(AetherFmt.normalize(off))
         assertEquals("tcp://1.1.1.1", off.aetherEchDns)
         assertEquals("ip.gs", off.aetherEchDomain)
+    }
+
+    /** The query of [link], each name with its value as the link writes it. */
+    private fun query(link: String): Map<String, String> =
+        link.substringAfter('?').substringBefore('#').split('&').associate { it.substringBefore('=') to it.substringAfter('=') }
+
+    @Test
+    fun theMasqueServerNameIsOneTheCoreTakes() {
+        // As the core takes it: a domain name, with a trailing dot or without.
+        for (name in listOf("www.cloudflare.com", "consumer-masque.cloudflareclient.com", "www.cloudflare.com.", "localhost", "_sni.example.com")) {
+            assertTrue(AetherFmt.isMasqueSni(name), name)
+        }
+        // No IPv4 address as the core's parser reads one; what it reads as none is a name like any other.
+        for (name in listOf("1.1.1.1", "1.1.1.1.", "255.255.255.255", "0.0.0.0")) {
+            assertFalse(AetherFmt.isMasqueSni(name), name)
+        }
+        for (name in listOf("1.1.1", "256.1.1.1", "01.1.1.1")) {
+            assertTrue(AetherFmt.isMasqueSni(name), name)
+        }
+        val bad = listOf(
+            "",
+            ".",
+            "www..cloudflare.com",
+            "www.cloudflare.com..",
+            "www cloudflare com",
+            "www.cloudflare.com:443",
+            "https://www.cloudflare.com",
+            "2606:4700:4700::1111",
+            "[2606:4700:4700::1111]",
+            "${"a".repeat(64)}.com",
+            "--upstream",
+            "-www.cloudflare.com",
+        )
+        for (name in bad) {
+            assertFalse(AetherFmt.isMasqueSni(name), name)
+        }
+    }
+
+    @Test
+    fun aMasqueServerNameTheCoreWouldRefuseIsRefusedOnlyWhileAMasqueTunnelTakesIt() {
+        for (protocol in listOf(AetherProtocol.MASQUE, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE)) {
+            for (name in listOf("1.1.1.1", "www..cloudflare.com", "--upstream")) {
+                val config = profile { aetherProtocol = protocol.type; aetherMasqueSni = name }
+                assertEquals(AetherFmt.Problem.INVALID_MASQUE_SNI, AetherFmt.normalize(config), "${protocol.type} $name")
+            }
+        }
+
+        val shapes = listOf<ProfileItem.() -> Unit>(
+            { aetherProtocol = AetherProtocol.WIREGUARD.type },
+            { aetherProtocol = AetherProtocol.GOOL.type },
+            { aetherPsiphon = "only" },
+            { aetherTor = "only" },
+        )
+        for (shape in shapes) {
+            // Kept as written, trimmed, to be put right when a MASQUE tunnel next takes it.
+            val waiting = profile { aetherMasqueSni = " 1.1.1.1 "; shape() }
+            assertNull(AetherFmt.normalize(waiting))
+            assertEquals("1.1.1.1", waiting.aetherMasqueSni)
+            // Out of use, it reaches neither the core nor a link.
+            val arguments = AetherCoreManager.buildArguments(waiting, 10819)
+            assertFalse("--masque-sni" in arguments, arguments.toString())
+            assertNull(query(link(waiting))["sni"])
+        }
+    }
+
+    @Test
+    fun theDefaultMasqueServerNameIsLeftToTheDefault() {
+        for (default in listOf(" ${AppConfig.AETHER_MASQUE_SNI} ", "www.cloudflare.com", " ")) {
+            val config = profile { aetherMasqueSni = default }
+            assertNull(AetherFmt.normalize(config), default)
+            assertNull(config.aetherMasqueSni, default)
+        }
+        // Another is kept as written, trimmed; the core leaves out a trailing dot itself.
+        val own = profile { aetherMasqueSni = " consumer-masque.cloudflareclient.com. " }
+        assertNull(AetherFmt.normalize(own))
+        assertEquals("consumer-masque.cloudflareclient.com.", own.aetherMasqueSni)
+    }
+
+    @Test
+    fun aLinkCarriesAMasqueServerNameOfItsOwnOverMasque() {
+        for (protocol in listOf(AetherProtocol.MASQUE, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE)) {
+            val own = link(profile { aetherProtocol = protocol.type; aetherMasqueSni = "consumer-masque.cloudflareclient.com" })
+            assertEquals("consumer-masque.cloudflareclient.com", query(own)["sni"], own)
+            assertEquals("consumer-masque.cloudflareclient.com", AetherFmt.parse(own)?.aetherMasqueSni, own)
+        }
+        // The default needs no word, and a link without one leaves the profile to the default.
+        for (default in listOf(null, AppConfig.AETHER_MASQUE_SNI)) {
+            val plain = link(profile { aetherMasqueSni = default })
+            assertNull(query(plain)["sni"], plain)
+            assertNull(AetherFmt.parse(plain)?.aetherMasqueSni, plain)
+        }
+        // A name the core would refuse goes into no link and is taken from none, and WireGuard takes none at all.
+        assertNull(query(link(profile { aetherMasqueSni = "1.1.1.1" }))["sni"])
+        val crafted = listOf(
+            link(profile {}) to "1.1.1.1",
+            link(profile {}) to "--upstream",
+            link(profile { aetherProtocol = AetherProtocol.WIREGUARD.type }) to "consumer-masque.cloudflareclient.com",
+        )
+        for ((plain, name) in crafted) {
+            val stray = plain.substringBefore('#') + "&sni=$name#" + plain.substringAfter('#')
+            assertEquals(name, query(stray)["sni"], stray)
+            assertNull(AetherFmt.parse(stray)?.aetherMasqueSni, stray)
+        }
     }
 
     @Test
@@ -789,6 +896,37 @@ class AetherFmtTest {
     }
 
     @Test
+    fun wireGuardOverMasqueGoesThroughALinkWithItsGatewayItsWireGuardEndpointAndItsMasqueSettings() {
+        val config = profile {
+            aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type
+            aetherTransport = AetherTransport.HTTP2.type
+            aetherFragment = true
+            aetherFragmentSize = "8-16"
+            aetherEch = true
+            aetherFingerprint = "firefox"
+            aetherWiwOuter = "162.159.192.1:443"
+            // The same address on both hops is no problem for the core here.
+            aetherWiwInner = "162.159.192.1:2408"
+        }
+        assertNull(AetherFmt.normalize(config))
+        assertEquals("162.159.192.1:443", config.aetherWiwOuter)
+        assertEquals("162.159.192.1:2408", config.aetherWiwInner)
+
+        val text = link(config)
+        assertTrue(text.contains("protocol=wg-over-masque"), text)
+        val parsed = AetherFmt.parse(text)
+        assertEquals(AetherProtocol.WG_OVER_MASQUE.type, parsed?.aetherProtocol)
+        assertEquals("162.159.192.1:443", parsed?.aetherWiwOuter)
+        assertEquals("162.159.192.1:2408", parsed?.aetherWiwInner)
+        assertEquals(AetherTransport.HTTP2.type, parsed?.aetherTransport)
+        assertEquals(true, parsed?.aetherFragment)
+        assertEquals("8-16", parsed?.aetherFragmentSize)
+        assertEquals(true, parsed?.aetherEch)
+        assertEquals("firefox", parsed?.aetherFingerprint)
+        assertEquals(text, link(parsed!!))
+    }
+
+    @Test
     fun anEmptyEndpointMeansScanning() {
         val config = profile {
             server = "  "
@@ -903,6 +1041,16 @@ class AetherFmtTest {
     }
 
     @Test
+    fun aLinkCarriesNoExitNodeProfile() {
+        // The name is that of a profile of this device; a link elsewhere would name another there, or none.
+        val noded = profile { aetherExitNode = "germany" }
+        val text = link(noded)
+        assertFalse(text.contains("germany"), text)
+        assertEquals(link(profile { }), text)
+        assertNull(AetherFmt.parse(text)?.aetherExitNode)
+    }
+
+    @Test
     fun aListenPortALinkStillNamesCountsNoMore() {
         // Links from before every core listened on the Aether listen port of the settings may name a port of their own.
         val plain = link(profile { })
@@ -956,5 +1104,27 @@ class AetherFmtTest {
         // The local proxy port is picked at random on every start, or the caller has none to name.
         assertNull(AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse" }))
         assertNull(AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse" }, emptySet()))
+    }
+
+    @Test
+    fun aScreenChecksAProfileOnTheListenPortItHolds() {
+        // The setting says 10819; the screen holds 20808, which is what the checks go by.
+        onListenPort(10819) {
+            assertEquals(
+                AetherFmt.Problem.LISTEN_PORT_TAKEN,
+                AetherFmt.normalize(profile { }, takenPorts = setOf(20808), listenPort = 20808)
+            )
+            assertNull(AetherFmt.normalize(profile { }, takenPorts = setOf(10819), listenPort = 20808))
+            assertEquals(
+                AetherFmt.Problem.NEXT_PORT_TAKEN,
+                AetherFmt.normalize(profile { aetherPsiphon = "chain" }, takenPorts = setOf(20809), listenPort = 20808)
+            )
+            // A command naming no listener gets one on that port as well.
+            assertEquals(
+                AetherFmt.Problem.LISTEN_PORT_TAKEN,
+                AetherFmt.normalize(profile { aetherCommand = "aether --wg" }, takenPorts = setOf(20808), listenPort = 20808)
+            )
+            assertNull(AetherFmt.normalize(profile { aetherCommand = "aether --wg" }, takenPorts = setOf(10819), listenPort = 20808))
+        }
     }
 }

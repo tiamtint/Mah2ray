@@ -39,11 +39,6 @@ object AppConfig {
     const val PREF_MUX_CONCURRENCY = "pref_mux_concurrency"
     const val PREF_MUX_XUDP_CONCURRENCY = "pref_mux_xudp_concurrency"
     const val PREF_MUX_XUDP_QUIC = "pref_mux_xudp_quic"
-    const val PREF_FRAGMENT_ENABLED = "pref_fragment_enabled"
-    const val PREF_FRAGMENT_PACKETS = "pref_fragment_packets"
-    const val PREF_FRAGMENT_LENGTH = "pref_fragment_length"
-    const val PREF_FRAGMENT_INTERVAL = "pref_fragment_interval"
-    const val PREF_FRAGMENT_MAXSPLIT = "pref_fragment_maxsplit"
     const val PREF_OBSERVATORY_LEAST_PING_INTERVAL = "pref_observatory_least_ping_interval"
     const val PREF_OBSERVATORY_LEAST_LOAD_INTERVAL = "pref_observatory_least_load_interval"
     const val PREF_OBSERVATORY_LEAST_LOAD_METHOD = "pref_observatory_least_load_method"
@@ -75,10 +70,14 @@ object AppConfig {
     /** PattNG: the settings of the page that gets new WARP keys, which no profile shares; see AetherKeysSettings. */
     const val PREF_AETHER_KEYS_KIND = "pref_aether_keys_kind"
     const val PREF_AETHER_KEYS_ENROLL_ADDRESS = "pref_aether_keys_enroll_address"
+    const val PREF_AETHER_KEYS_FRAGMENT = "pref_aether_keys_fragment"
+    const val PREF_AETHER_KEYS_FRAGMENT_SIZE = "pref_aether_keys_fragment_size"
+    const val PREF_AETHER_KEYS_FRAGMENT_DELAY = "pref_aether_keys_fragment_delay"
     const val PREF_AETHER_KEYS_ECH = "pref_aether_keys_ech"
     const val PREF_AETHER_KEYS_ECH_DNS = "pref_aether_keys_ech_dns"
     const val PREF_AETHER_KEYS_ECH_DOMAIN = "pref_aether_keys_ech_domain"
     const val PREF_AETHER_KEYS_FINGERPRINT = "pref_aether_keys_fingerprint"
+    const val PREF_AETHER_KEYS_EXIT_NODE = "pref_aether_keys_exit_node"
     const val PREF_AETHER_KEYS_FINAL_MASK = "pref_aether_keys_final_mask"
     const val PREF_AETHER_KEYS_DIAL_MODE = "pref_aether_keys_dial_mode"
     const val PREF_AETHER_KEYS_COMMAND = "pref_aether_keys_command"
@@ -132,7 +131,6 @@ object AppConfig {
     const val TAG_PROXY = "proxy"
     const val TAG_DIRECT = "direct"
     const val TAG_BLOCKED = "block"
-    const val TAG_FRAGMENT = "fragment"
     const val TAG_DNS = "dns-module"
     const val TAG_DOMESTIC_DNS = "domestic-dns"
     const val TAG_BALANCER = "balancer-main"
@@ -171,7 +169,7 @@ object AppConfig {
     const val IP_API_URL = "https://api.ip.sb/geoip"
 
     /** DNS server addresses. */
-    const val DNS_PROXY = "https://dns.google/dns-query"
+    const val DNS_PROXY = "https://8.8.8.8/dns-query"
     const val DNS_DIRECT = "localhost"
     const val DNS_VPN = "8.8.8.8"
     const val GEOSITE_PRIVATE = "geosite:private"
@@ -200,6 +198,12 @@ object AppConfig {
     /** PattNG: where the Aether core asks for the ECH key, and the domain whose key it takes, unless a profile names others. */
     const val AETHER_ECH_DNS = "udp://1.1.1.1"
     const val AETHER_ECH_DOMAIN = "cloudflare-ech.com"
+
+    /**
+     * PattNG: the server name the MASQUE handshakes of the Aether core put in their ClientHello, unless a profile names
+     * another; the core's own default as well. The HTTP host of the CONNECT request stays the core's.
+     */
+    const val AETHER_MASQUE_SNI = "www.cloudflare.com"
 
     /** PattNG: where the Aether core sends the calls to the WARP API, which register and enroll the keys, unless told otherwise. */
     const val AETHER_ENROLL_ADDRESS = "api.cloudflareclient.com"
@@ -330,8 +334,14 @@ object AppConfig {
     const val DEFAULT_SECURITY = "auto"
     const val DEFAULT_NETWORK = "tcp"
 
-    /** Xray's default targetStrategy; a profile stores null for it and its outbound carries none. */
+    /** Xray's default targetStrategy, and the default of most profile types; an outbound with it carries none. */
     const val TARGET_STRATEGY_AS_IS = "AsIs"
+
+    /**
+     * The default targetStrategy of an Aether profile whose traffic leaves through WARP, see
+     * CoreOutboundBuilder.defaultTargetStrategy.
+     */
+    const val TARGET_STRATEGY_FORCE_IPV4V6 = "ForceIPv4v6"
     const val TLS = "tls"
     const val REALITY = "reality"
     const val HEADER_TYPE_HTTP = "http"

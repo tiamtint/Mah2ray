@@ -25,6 +25,9 @@ interface MainDataSource : Closeable {
     fun getString(resId: Int): String
     fun getString(resId: Int, vararg formatArgs: Any): String
 
+    /** The items of the string array [resId], as the app's language has them. */
+    fun getStringArray(resId: Int): List<String>
+
     fun getSubscriptions(): List<SubscriptionCache>
     fun getSubscriptionItem(id: String): SubscriptionItem?
 
@@ -32,9 +35,14 @@ interface MainDataSource : Closeable {
     fun decodeServerConfig(guid: String): ProfileItem?
     fun decodeAffiliationInfo(guid: String): ServerAffiliationInfo?
 
-    fun encodeServerList(guids: List<String>, groupId: String)
+    /**
+     * PattNG: moves the profile [fromGuid] names to where the one [toGuid] names stands in the stored list of [groupId];
+     * false when the storage refused it, which leaves the list as it was.
+     */
+    fun moveServer(groupId: String, fromGuid: String, toGuid: String): Boolean
 
-    fun removeServer(guid: String)
+    /** PattNG: removes the profile [guid] names; false when the storage refused it, which leaves the profile as it was. */
+    fun removeServer(guid: String): Boolean
     fun removeAllServer(): Int
     fun removeInvalidServerByGuid(guid: String): Int
     fun removeInvalidServersInGroup(groupId: String): Int
