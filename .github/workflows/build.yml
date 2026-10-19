@@ -191,14 +191,14 @@ jobs:
         # build before anything is assembled or signed.
         ./gradlew :app:testPlaystoreDebugUnitTest
         ./gradlew licenseFdroidReleaseReport
-        ./gradlew assembleRelease -PpattngVersion="${{ inputs.release_tag }}" -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+        ./gradlew assemblePlaystoreRelease -PpattngVersion="${{ inputs.release_tag }}" -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
     
     - name: Check the native libraries in the APKs
       run: |
         # Looked into as ZIP files: every ABI the Aether core is built for has to carry the core, its
         # Psiphon client and its pluggable transport, and each APK's native files are listed for the record.
         status=0
-        for apk in ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk; do
+        for apk in ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*.apk; do
           entries=$(unzip -Z1 "$apk" | grep '^lib/' || true)
           echo "$(basename "$apk"):"
           echo "$entries" | sed 's/^/  /'
@@ -219,28 +219,28 @@ jobs:
       if: ${{  success() }}
       with:
         name: arm64-v8a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*arm64-v8a*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*arm64-v8a*.apk
 
     - name: Upload armeabi-v7a APK
       uses: actions/upload-artifact@v7
       if: ${{  success() }}
       with:
         name: armeabi-v7a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*armeabi-v7a*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*armeabi-v7a*.apk
 
     - name: Upload x86 APK
       uses: actions/upload-artifact@v7
       if: ${{  success() }}
       with:
         name: x86-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*x86*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*x86*.apk
 
     - name: Upload universal APK
       uses: actions/upload-artifact@v7
       if: ${{ success() }}
       with:
         name: universal-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*universal*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*universal*.apk
 
   sign-and-release:
     needs: build
