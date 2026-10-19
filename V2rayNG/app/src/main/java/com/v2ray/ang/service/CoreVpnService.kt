@@ -268,7 +268,7 @@ class CoreVpnService : VpnService(), ServiceControl {
      */
     private fun configurePlatformFeatures(builder: Builder) {
         builder.setMetered(false)
-        if (MmkvManager.decodeSettingsBool(AppConfig.PREF_APPEND_HTTP_PROXY)) {
+        if (SettingsManager.isAppendingHttpProxy()) {
             builder.setHttpProxy(ProxyInfo.buildDirectProxy(LOOPBACK, SettingsManager.getHttpPort()))
         }
     }

@@ -7,6 +7,7 @@ import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.util.LogUtil
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -273,15 +274,16 @@ object AetherIdentityManager {
      * once every one of [files] is there and reads as a key. Nothing in [workDir] is touched before
      * that moment, so whatever stops a renewal earlier leaves the keys in use as they were; a stop
      * after it is finished by [settle]. A key not among [files] stays as it is. True when the new
-     * keys took the place of the old ones.
+     * keys took the place of the old ones. The steps on the files run on [io].
      */
     internal suspend fun renew(
         workDir: File,
         renewalDir: File,
         files: List<String>,
+        io: CoroutineDispatcher = Dispatchers.IO,
         register: suspend () -> Boolean,
     ): Boolean {
-        val cleared = withContext(Dispatchers.IO) {
+        val cleared = withContext(io) {
             // A renewal whose keys were all ready is finished first; what one stopped earlier left is no key anyone uses.
             settle(workDir, renewalDir) && renewalDir.deleteRecursively() && renewalDir.mkdirs()
         }
@@ -292,14 +294,14 @@ object AetherIdentityManager {
         val ready = AtomicBoolean(false)
         try {
             if (register()) {
-                withContext(Dispatchers.IO) {
+                withContext(io) {
                     // A key the run left beside the ones asked for goes with the folder rather than into place.
                     (KEY_FILES - files.toSet()).forEach { File(renewalDir, it).delete() }
                     ready.set(isComplete(renewalDir, files) && markReady(renewalDir))
                 }
             }
         } finally {
-            withContext(NonCancellable + Dispatchers.IO) {
+            withContext(NonCancellable + io) {
                 if (ready.get()) settle(workDir, renewalDir) else renewalDir.deleteRecursively()
             }
         }

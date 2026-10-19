@@ -139,7 +139,7 @@ fun SettingsScreen(
 
     var hevTunLogLevel by rememberMmkvString(AppConfig.PREF_HEV_TUNNEL_LOGLEVEL, AppConfig.DEFAULT_HEV_TUNNEL_LOGLEVEL)
     var hevTunRwTimeout by rememberMmkvString(AppConfig.PREF_HEV_TUNNEL_RW_TIMEOUT, "")
-    var useHevTun by rememberMmkvBool(AppConfig.PREF_USE_HEV_TUNNEL, true)
+    var useHevTun by rememberMmkvBool(AppConfig.PREF_USE_HEV_TUNNEL, false)
 
     var enableLocalProxy by rememberMmkvBool(AppConfig.PREF_ENABLE_LOCAL_PROXY, true)
     var socksPort by rememberMmkvString(AppConfig.PREF_SOCKS_PORT, "")
@@ -178,7 +178,8 @@ fun SettingsScreen(
 
     val isVpn = mode == VPN
     val hevTunEnabled = isVpn && useHevTun
-    val localProxyForced = hevTunEnabled
+    // the core also keeps the local proxy for the root mode and its LAN sharing, which reach it through HEV
+    val localProxyForced = hevTunEnabled || enableRootMode || lanSharing
     val effectiveLocalProxy = enableLocalProxy || localProxyForced
     val muxXudpConcurrencyInt = muxXudpConcurrency.toIntOrNull() ?: AppConfig.DEFAULT_MUX_XUDP_CONCURRENCY.toInt()
 

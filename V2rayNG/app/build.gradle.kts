@@ -21,8 +21,8 @@ android {
         applicationId = "com.Mah2ray.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 750
-        versionName = (project.findProperty("pattngVersion") as? String)?.takeIf { it.isNotBlank() } ?: "2.3.10"
+        versionCode = 752
+        versionName = (project.findProperty("pattngVersion") as? String)?.takeIf { it.isNotBlank() } ?: "2.3.12"
 
         val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
         splits {
@@ -147,6 +147,7 @@ android {
             "ru",
             "fa",
             "ar",
+            "az",
             "bn",
             "bqi-rIR"
         )

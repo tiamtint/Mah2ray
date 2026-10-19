@@ -3,6 +3,7 @@ package com.v2ray.ang.core
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.enums.AetherProtocol
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -14,6 +15,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class AetherIdentityManagerTest {
@@ -245,27 +248,41 @@ class AetherIdentityManagerTest {
         val dir = keysInUse()
         val renewal = File(folder, "aether-renewal")
         val registered = CompletableDeferred<Unit>()
+        // The renewal's steps on the files run on this one thread, in turn. withContext suspends only
+        // when its step is not over yet; a step over that soon let the renewal run on to its end before
+        // this test looked. The step that marks the new keys ready is therefore held, behind a task
+        // that waits for the test, until the renewal waits for it.
+        val steps = Executors.newSingleThreadExecutor()
+        val hold = CountDownLatch(1)
 
-        val job = launch {
-            AetherIdentityManager.renew(dir, renewal, AetherIdentityManager.KEY_FILES) {
-                register(renewal)
-                registered.complete(Unit)
-                true
+        try {
+            val job = launch {
+                AetherIdentityManager.renew(dir, renewal, AetherIdentityManager.KEY_FILES, steps.asCoroutineDispatcher()) {
+                    register(renewal)
+                    steps.execute { hold.await() }
+                    registered.complete(Unit)
+                    true
+                }
             }
-        }
-        registered.await()
-        // The mark is written on the IO dispatcher. Waiting for it without suspending keeps this
-        // single-threaded event loop busy, so the step's result can only be delivered after the
-        // cancellation below: the moment a renewal must neither drop its new keys nor leave half of them.
-        val mark = File(renewal, AetherIdentityManager.READY_MARK)
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
-        while (!mark.exists() && System.nanoTime() < deadline) Thread.sleep(1)
-        assertTrue(mark.exists())
-        job.cancel()
-        job.join()
+            registered.await()
+            // This coroutine runs, so the renewal is waiting for that step. The thread reaches the
+            // marker below only after the step: the new keys are marked ready, and the step's result
+            // waits for this single-threaded event loop, which the blocking wait keeps busy, so it can
+            // only be delivered after the cancellation below: the moment a renewal must neither drop
+            // its new keys nor leave half of them.
+            hold.countDown()
+            steps.submit {}.get(10, TimeUnit.SECONDS)
+            // Marked ready, and not in place yet.
+            assertTrue(File(renewal, AetherIdentityManager.READY_MARK).exists())
+            assertEquals(every("old"), devices(dir))
+            job.cancel()
+            job.join()
 
-        assertEquals(every("new"), devices(dir))
-        assertFalse(renewal.exists())
+            assertEquals(every("new"), devices(dir))
+            assertFalse(renewal.exists())
+        } finally {
+            steps.shutdownNow()
+        }
     }
 
     @Test

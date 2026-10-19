@@ -507,7 +507,8 @@ object SettingsManager {
      * @return True if HEV TUN is used, false otherwise.
      */
     fun isUsingHevTun(): Boolean {
-        return MmkvManager.decodeSettingsBool(AppConfig.PREF_USE_HEV_TUNNEL, true)
+        // PattNG: Xray-core's own TUN is the default
+        return MmkvManager.decodeSettingsBool(AppConfig.PREF_USE_HEV_TUNNEL, false)
     }
 
     /**
@@ -527,11 +528,56 @@ object SettingsManager {
     }
 
     /**
+     * Check if Xray-core's own TUN inbound carries the traffic: the VPN mode with HEV TUN off. The root mode always
+     * runs its own HEV tun, whichever mode is selected.
+     */
+    fun isUsingXrayTun(): Boolean {
+        return usesXrayTun(isVpnMode(), isRootMode(), isUsingHevTun())
+    }
+
+    /** Whether Xray-core's own TUN inbound carries the traffic, see [isUsingXrayTun]. */
+    internal fun usesXrayTun(vpnMode: Boolean, rootMode: Boolean, hevTun: Boolean): Boolean {
+        return vpnMode && !rootMode && !hevTun
+    }
+
+    /**
+     * Check if the core keeps its local proxy, the SOCKS inbound that takes HTTP as well: always for HEV TUN in the VPN
+     * mode, the root mode and its LAN sharing, which all reach the core through it, and otherwise as set.
+     */
+    fun isLocalProxyKept(): Boolean {
+        return keepsLocalProxy(
+            vpnMode = isVpnMode(),
+            hevTun = isUsingHevTun(),
+            rootMode = isRootMode(),
+            lanSharing = MmkvManager.decodeSettingsBool(AppConfig.PREF_ROOT_LAN_SHARING),
+            localProxySet = MmkvManager.decodeSettingsBool(AppConfig.PREF_ENABLE_LOCAL_PROXY, true),
+        )
+    }
+
+    /** Whether the core keeps its local proxy, see [isLocalProxyKept]. */
+    internal fun keepsLocalProxy(vpnMode: Boolean, hevTun: Boolean, rootMode: Boolean, lanSharing: Boolean, localProxySet: Boolean): Boolean {
+        return (vpnMode && hevTun) || rootMode || lanSharing || localProxySet
+    }
+
+    /**
+     * Check if the VPN hands apps the local proxy as their HTTP proxy: as set, and only while the core keeps the local
+     * proxy, since the HTTP proxy would point at a closed port otherwise.
+     */
+    fun isAppendingHttpProxy(): Boolean {
+        return appendsHttpProxy(MmkvManager.decodeSettingsBool(AppConfig.PREF_APPEND_HTTP_PROXY), isLocalProxyKept())
+    }
+
+    /** Whether the VPN hands apps the local HTTP proxy, see [isAppendingHttpProxy]. */
+    internal fun appendsHttpProxy(appendSet: Boolean, localProxyKept: Boolean): Boolean {
+        return appendSet && localProxyKept
+    }
+
+    /**
      *  Check if process routing can be used.
      */
     fun canUseProcessRouting(): Boolean {
         // Must xray tun
-        if (isUsingHevTun()) {
+        if (!isUsingXrayTun()) {
             return false
         }
 

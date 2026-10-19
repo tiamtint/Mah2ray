@@ -70,6 +70,7 @@
     <string-array name="streamsecurity_utls" translatable="false">
         <item />
         <item>chrome</item>
+        <item>hellochrome_120</item>
         <item>firefox</item>
         <item>safari</item>
         <item>ios</item>
@@ -139,6 +140,7 @@
         <item>Русский</item>
         <item>فارسی</item>
         <item>عربي</item>
+        <item>Azərbaycanca</item>
         <item>বাংলা</item>
         <item>لۊری بختیاری</item>
     </string-array>
@@ -153,6 +155,7 @@
         <item>ru</item>
         <item>fa</item>
         <item>ar</item>
+        <item>az</item>
         <item>bn</item>
         <item>bqi-rIR</item>
     </string-array>
