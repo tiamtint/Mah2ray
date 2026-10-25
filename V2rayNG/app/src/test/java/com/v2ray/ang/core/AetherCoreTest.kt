@@ -346,6 +346,173 @@ class AetherCoreTest {
     }
 
     @Test
+    fun theHttpProxiesACommandWrittenByHandOpensAreItsPortsToo() {
+        val tor = AetherCore.ofCommand(
+            "aether --wg --tor --bind 127.0.0.1:10819 --tor-bind 127.0.0.1:10820 " +
+                "--http-proxy 127.0.0.1:8118 --tor-http 127.0.0.1:8119"
+        )!!
+        assertEquals(listOf(10819, 10820, 8118, 8119), tor.ports)
+        val psiphon = AetherCore.ofCommand(
+            "aether --wg --psiphon --bind 127.0.0.1:10819 --psiphon-bind 127.0.0.1:10821 --psiphon-http 127.0.0.1:8120"
+        )!!
+        assertEquals(listOf(10819, 10821, 8120), psiphon.ports)
+    }
+
+    @Test
+    fun twoListenersOfACommandOnOnePortAreFound() {
+        // An HTTP proxy on the port the core listens on, which a command naming no listener gets there.
+        assertEquals(10819, AetherCore.ofCommand("aether --wg --http-proxy 127.0.0.1:10819", 10819)!!.sharedPort)
+        // Tor inside the tunnel on the core's own port.
+        assertEquals(10820, AetherCore.ofCommand("aether --masque --tor --tor-bind 127.0.0.1:10820 --bind 127.0.0.1:10820")!!.sharedPort)
+        // A carrier alone serves the core's own listener and its own HTTP proxy, and the core runs nothing else.
+        val torAlone = AetherCore.ofCommand(
+            "aether --tor-only --bind 127.0.0.1:10819 --http-proxy 127.0.0.1:8118 --tor-http 127.0.0.1:8118 " +
+                "--psiphon --psiphon-bind 127.0.0.1:10819 --psiphon-http 127.0.0.1:8120"
+        )!!
+        assertNull(torAlone.sharedPort)
+        assertEquals(listOf(10819, 8118), torAlone.ports)
+        // Tor's listener of a command that runs no Tor binds nothing: the command names one listener, not two.
+        val torOff = AetherCore.ofCommand("aether --masque --tor-bind 127.0.0.1:10819 --tor-http 127.0.0.1:10820", 10819)!!
+        assertNull(torOff.sharedPort)
+        assertEquals(listOf(10819), torOff.ports)
+        // Each with a port of its own; Psiphon's 0 around the tunnel is none.
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --http-proxy 127.0.0.1:8118")!!.sharedPort)
+        assertNull(
+            AetherCore.ofCommand("aether --masque --psiphon-reverse --psiphon-bind 127.0.0.1:0 --psiphon-http 127.0.0.1:0 --bind 127.0.0.1:10819")!!
+                .sharedPort
+        )
+        // The settings give each listener a port of its own.
+        val most = profile {
+            aetherProtocol = AetherProtocol.MASQUE.type
+            aetherPsiphon = AetherPsiphon.CHAIN.type
+            aetherTor = AetherTor.REVERSE.type
+        }
+        assertNull(AetherCore.of(most).sharedPort)
+    }
+
+    @Test
+    fun aListenerACommandDoesNotNameListensOnTheCoresDefaultPort() {
+        // Tor inside the tunnel gets the app's port; the core's own listener, left out, is on 1819 all the same.
+        assertEquals(listOf(1819, 10819), AetherCore.ofCommand("aether --wg --tor")!!.ports)
+        // Tor's and Psiphon's listeners around the tunnel, left out, are on 1820 and 1821.
+        assertEquals(listOf(10819, 1820), AetherCore.ofCommand("aether --masque --tor-reverse --bind 127.0.0.1:10819")!!.ports)
+        assertEquals(listOf(10819, 1821), AetherCore.ofCommand("aether --masque --psiphon-reverse --bind 127.0.0.1:10819")!!.ports)
+        // A default the command does not see can be the port it names for another listener.
+        assertEquals(1819, AetherCore.ofCommand("aether --wg --tor --tor-bind 127.0.0.1:1819")!!.sharedPort)
+        assertEquals(1820, AetherCore.ofCommand("aether --masque --tor-reverse --bind 127.0.0.1:1820")!!.sharedPort)
+        // An HTTP proxy left out is off, and a listener of a mode that does not run binds nothing.
+        assertEquals(listOf(10819), AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819")!!.ports)
+        // The commands of the app name every listener they run.
+        assertEquals(listOf(10820, 10819), AetherCore.of(pinned.copy(aetherTor = "chain")).ports)
+    }
+
+    @Test
+    fun aloneTheCoreHoldsItsOwnHttpProxyAsItStartsAndThenTheCarriersOne() {
+        // The core binds its own HTTP proxy as it starts, beside its own listener: it counts, and cannot share that one.
+        assertEquals(listOf(10819, 8118), AetherCore.ofCommand("aether --tor-only --bind 127.0.0.1:10819 --http-proxy 127.0.0.1:8118")!!.ports)
+        assertEquals(10819, AetherCore.ofCommand("aether --tor-only --bind 127.0.0.1:10819 --http-proxy 127.0.0.1:10819")!!.sharedPort)
+        // It lets it go before Tor's HTTP proxy is bound, so those two may share a port; Tor's and the core's own listener may not.
+        assertNull(
+            AetherCore.ofCommand("aether --tor-only --bind 127.0.0.1:10819 --http-proxy 127.0.0.1:8118 --tor-http 127.0.0.1:8118")!!.sharedPort
+        )
+        assertEquals(10819, AetherCore.ofCommand("aether --psiphon-only --bind 127.0.0.1:10819 --psiphon-http 127.0.0.1:10819")!!.sharedPort)
+    }
+
+    @Test
+    fun aListenerWhoseAddressTheCoreDoesNotTakeIsFound() {
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --http-proxy [::1]:8118")!!.invalidListener)
+        // The core would quietly listen on its default instead, where the app would dial 20808.
+        assertEquals("--bind", AetherCore.ofCommand("aether --wg --bind localhost:20808")!!.invalidListener)
+        assertEquals(AetherCoreManager.TOR_BIND, AetherCore.ofCommand("aether --masque --tor-reverse --bind 127.0.0.1:10819 --tor-bind 1830")!!.invalidListener)
+        // The core reads its own listener's address as written, and the others trimmed.
+        assertEquals("--bind", AetherCore.ofCommand("aether --wg --bind ' 127.0.0.1:10819'")!!.invalidListener)
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --http-proxy ' 127.0.0.1:8118 '")!!.invalidListener)
+        // An HTTP proxy written blank or "off" is off, and a listener of a mode that does not run binds nothing.
+        assertNull(AetherCore.ofCommand("aether --wg --tor --bind 127.0.0.1:10820 --tor-bind 127.0.0.1:10819 --tor-http off")!!.invalidListener)
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --http-proxy ''")!!.invalidListener)
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --tor-bind nowhere")!!.invalidListener)
+        // The app's own commands write addresses the core takes.
+        assertNull(AetherCore.of(pinned.copy(aetherTor = "chain")).invalidListener)
+    }
+
+    @Test
+    fun theListenerTheAppDialsIsWhereTheAppReachesIt() {
+        // The app dials the core on 127.0.0.1, which a listener on 0.0.0.0 answers as well.
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819")!!.unreachableListener)
+        assertNull(AetherCore.ofCommand("aether --wg --bind 0.0.0.0:10819")!!.unreachableListener)
+        // :: as well: Android opens an IPv6 socket to IPv4 too.
+        assertNull(AetherCore.ofCommand("aether --wg --bind [::]:10819")!!.unreachableListener)
+        assertNull(AetherCore.ofCommand("aether --wg --bind [::ffff:127.0.0.1]:10819")!!.unreachableListener)
+        // Another loopback address, IPv6's, or a network's: the session would stay connecting.
+        assertEquals("--bind", AetherCore.ofCommand("aether --wg --bind 127.0.0.2:10819")!!.unreachableListener)
+        assertEquals("--bind", AetherCore.ofCommand("aether --wg --bind [::1]:10819")!!.unreachableListener)
+        assertEquals("--bind", AetherCore.ofCommand("aether --wg --bind 192.168.1.5:10819")!!.unreachableListener)
+        // With Tor or Psiphon inside the tunnel the app dials theirs, and the core's own may listen anywhere.
+        assertNull(AetherCore.ofCommand("aether --wg --tor --bind 192.168.1.5:10820 --tor-bind 127.0.0.1:10819")!!.unreachableListener)
+        assertEquals(AetherCoreManager.TOR_BIND, AetherCore.ofCommand("aether --wg --tor --tor-bind [::1]:10819")!!.unreachableListener)
+        assertEquals(
+            AetherCoreManager.PSIPHON_BIND,
+            AetherCore.ofCommand("aether --wg --psiphon --psiphon-bind 10.0.0.1:10819")!!.unreachableListener,
+        )
+        // An HTTP proxy may listen on a network's address; nobody in the app dials it.
+        assertNull(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --http-proxy 192.168.1.5:8118")!!.unreachableListener)
+        // An address the core does not take is another problem, and one the command leaves out the app gives on 127.0.0.1.
+        assertNull(AetherCore.ofCommand("aether --wg --bind localhost:20808")!!.unreachableListener)
+        assertNull(AetherCore.ofCommand("aether --wg --http-proxy 192.168.1.5:8118")!!.unreachableListener)
+        assertNull(AetherCore.of(pinned.copy(aetherTor = "chain")).unreachableListener)
+    }
+
+    @Test
+    fun theListenerTheAppDialsIsReadTrimmedAsTheCoreReadsIt() {
+        // Tor inside the tunnel, dialled on its listener, which the core reads trimmed: the app dials the same port.
+        val tor = AetherCore.ofCommand("aether --masque --tor --tor-bind '127.0.0.1:10820 '")!!
+        assertEquals(10820, tor.port)
+        assertEquals(listOf(1819, 10820), tor.ports)
+        assertNull(tor.invalidListener)
+        assertNull(tor.unreachableListener)
+        // The core's own listener is read as written, so a space keeps the app from reading its port at all.
+        assertNull(AetherCore.ofCommand("aether --wg --bind '127.0.0.1:10819 '"))
+    }
+
+    @Test
+    fun theListenersOtherThanItsOwnAreCountedTrimmedAsTheCoreReadsThem() {
+        assertEquals(
+            listOf(10819, 8118),
+            AetherCore.ofCommand("aether --wg --bind 127.0.0.1:10819 --http-proxy '127.0.0.1:8118 '")!!.ports
+        )
+        assertEquals(
+            8118,
+            AetherCore.ofCommand("aether --wg --bind 127.0.0.1:8118 --http-proxy '127.0.0.1:8118 '")!!.sharedPort
+        )
+    }
+
+    @Test
+    fun aRegistrationOfKeysListensOnlyWhereACarrierAroundTheTunnelDoes() {
+        // The core registers and ends: no listener of its own, though the command names none to leave to a default.
+        assertEquals(emptyList<Int>(), AetherCore(listOf("--register", "wg", "--wg")).ports)
+        assertEquals(emptyList<Int>(), AetherCore(listOf("--register", "wg", "--wg", "--tor")).ports)
+        // A carrier around the tunnel carries its requests on its listener, the default where none is named.
+        assertEquals(listOf(1820), AetherCore(listOf("--register", "masque", "--masque", "--tor-reverse")).ports)
+        assertEquals(
+            listOf(20808),
+            AetherCore(listOf("--register", "masque", "--masque", "--psiphon-reverse", "--psiphon-bind", "127.0.0.1:20808")).ports
+        )
+        // That carrier's HTTP proxy too, which it binds as it serves; the core's own is not bound.
+        assertEquals(
+            listOf(1820, 9000),
+            AetherCore(listOf("--register", "masque", "--masque", "--tor-reverse", "--tor-http", "127.0.0.1:9000", "--http-proxy", "127.0.0.1:9001")).ports
+        )
+        assertEquals(
+            9000,
+            AetherCore(listOf("--register", "masque", "--masque", "--tor-reverse", "--tor-bind", "127.0.0.1:9000", "--tor-http", "127.0.0.1:9000")).sharedPort
+        )
+        assertEquals(
+            listOf(1821, 9002),
+            AetherCore(listOf("--register", "masque", "--masque", "--psiphon-reverse", "--psiphon-http", "127.0.0.1:9002")).ports
+        )
+    }
+
+    @Test
     fun anUpdateThatLeavesAProfileAsItWasLeavesItsDigestAsItWas() {
         // A subscription's update builds every profile again, added anew, and may move it to another subscription or
         // describe it anew; what it connects with is what tells an exit-node, or the hops of a chain, apart.

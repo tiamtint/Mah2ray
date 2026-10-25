@@ -617,8 +617,14 @@
     <string name="aether_invalid_hop">اكتب العنوان والمنفذ معًا، مثل 162.159.192.1:2408</string>
     <string name="aether_same_hop">يجب أن تكون القفزتان بعنوانين مختلفين</string>
     <string name="aether_invalid_fragment">اكتب رقمًا أو نطاقًا مثل 16-32: الحجم من 1 إلى 4096 بايت، والتأخير من 0 إلى 1000 مللي ثانية</string>
-    <string name="aether_listen_port_taken">لا يمكن للنواة أن تستمع على منفذ البروكسي المحلي للتطبيق، ولا على المنفذ الذي يزيد بثلاثة عن منفذ الاستماع لـ Aether؛ غيّر منفذ الاستماع لـ Aether في الإعدادات، أو منافذ الأمر</string>
+    <string name="aether_listen_port_taken">المنفذ %1$d، الذي تستمع عليه نواة Aether، يشغله أحد مداخل هذا الإعداد، مثل منفذ البروكسي المحلي أو المنفذ الذي يزيد بثلاثة عن منفذ الاستماع لـ Aether؛ غيّر منفذ الاستماع لـ Aether في الإعدادات، أو منافذ الأمر</string>
     <string name="aether_secondary_port_taken">أحد مداخل هذا الإعداد يستمع بالفعل على %1$d، وهو المنفذ الذي يزيد بثلاثة عن منفذ الاستماع لـ Aether، والذي تتصل عبره نواة Aether بالخارج؛ غيّر منفذ الاستماع لـ Aether في الإعدادات</string>
+    <string name="aether_listen_port_in_use">المنفذ %1$d، الذي تستمع عليه نواة Aether، يستخدمه تطبيق آخر؛ غيّر منفذ الاستماع لـ Aether في الإعدادات، أو منافذ الأمر</string>
+    <string name="aether_secondary_port_in_use">المنفذ %1$d، الذي يزيد بثلاثة عن منفذ الاستماع لـ Aether ويفتحه Xray لتتصل عبره نواة Aether بالخارج، يستخدمه تطبيق آخر؛ غيّر منفذ الاستماع لـ Aether في الإعدادات</string>
+    <string name="aether_listen_port_invalid">يطلب أمر Aether من النواة الاستماع على %1$d، وهذا ليس منفذًا (من 1 إلى 65535)؛ غيّر منافذ الأمر</string>
+    <string name="aether_listen_address_invalid">يعطي أمر Aether الخيار %1$s عنوانًا لا تقبله النواة؛ اكتب بعده عنوان IP ومنفذًا، مثل 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">يعطي أمر Aether الخيار %1$s عنوانًا لا يتصل به التطبيق: يتصل التطبيق بالنواة عبر 127.0.0.1، لذا اكتب بعده 127.0.0.1 (أو 0.0.0.0 لكل العناوين) ومنفذًا</string>
+    <string name="aether_listen_port_shared">يطلب أمر Aether من النواة الاستماع على %1$d بمستمعَين من مستمعيها (المستمع الذي لا يذكره الأمر يستمع مع ذلك: الذي يتصل به التطبيق على منفذ الاستماع لـ Aether، والبقية على المنفذ الافتراضي للنواة: 1819 أو 1820 أو 1821)؛ أعطِ كل مستمع منفذًا خاصًا به</string>
     <string name="aether_lab_psiphon">سايفون</string>
     <string name="aether_lab_psiphon_mode">طريقة اتصال سايفون</string>
     <string name="aether_lab_psiphon_cdn_ips">عناوين IP لشبكة CDN</string>
@@ -666,6 +672,7 @@
     <string name="aether_unsupported_abi">نواة Aether غير متوفرة لهذا الجهاز</string>
     <string name="aether_core_stopped">توقفت نواة Aether عن العمل</string>
     <string name="aether_core_stopped_no_ech_key">توقفت نواة Aether: ميزة ECH مفعّلة لكن لم يُعثر على مفتاح ECH صالح للاستخدام. بدونه كان اسم الخادم سيُرسل بنص واضح.</string>
+    <string name="aether_core_stopped_chain_ended">توقف تور أو سايفون داخل نفق Aether، لذا أُوقف الاتصال: %1$s</string>
     <string name="aether_core_connecting">لا تزال نواة Aether قيد الاتصال</string>
     <string name="menu_item_import_config_manually_aether">إضافة إعداد Aether يدويًا</string>
     <string name="aether_action_renew_key">الحصول على مفاتيح WARP جديدة…</string>
@@ -702,6 +709,13 @@
     <string name="aether_keys_hint_ech">يخفي اسم الخادم في طلبات WARP API؛ بدون مفتاح ECH صالح للاستخدام لا يُطلب أي مفتاح WARP</string>
     <string name="aether_lab_fingerprint">البصمة</string>
     <string name="aether_keys_invalid_enroll_address">يجب أن يكون عنوان API عنوان IP أو اسم نطاق، مع منفذ أو بدونه، مثل 188.114.97.6:443 أو [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">اسم خادم API (SNI)</string>
+    <string name="aether_keys_lab_api_host">مضيف API</string>
+    <string name="aether_keys_hint_enroll_address">اتركه فارغًا لاستخدام عنوان اسم خادم API</string>
+    <string name="aether_keys_hint_api_sni">اتركه فارغًا لاستخدام مضيف API</string>
+    <string name="aether_keys_hint_api_host">اتركه فارغًا لاستخدام api.devices.cloudflare.com، ثم api.cloudflareclient.com إذا لم يُجب وكان اسم الخادم فارغًا أيضًا. ترفض Cloudflare اسم خادم يختلف عن المضيف</string>
+    <string name="aether_keys_invalid_api_sni">يجب أن يكون اسم خادم API اسم نطاق، مثل api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">يجب أن يكون مضيف API اسم نطاق، مثل api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">يجب أن يسجّل الأمر مفاتيح: --register متبوعًا بـ all أو wg أو masque أو mim أو gool-classic (WARP-in-WARP) أو gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">تظهر هنا مخرجات النواة ومفاتيح WARP</string>
     <string name="aether_scan_blocked">افصل ملف Aether قبل الفحص؛ الفحص سيفتح نفقًا ثانيًا بمفتاح الاتصال الحالي</string>
@@ -779,5 +793,8 @@
         <item>GFW</item>
         <item>قوي</item>
     </string-array>
+    <string name="sub_info_open_support">فتح رابط الدعم</string>
+    <string name="sub_info_open_page">فتح صفحة معلومات الاشتراك</string>
+    <string name="sub_info_unlimited">غير محدود</string>
 
 </resources>

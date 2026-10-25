@@ -102,6 +102,10 @@ class AetherKeysViewModel(
 
     fun setEnrollAddress(address: String) = update { it.copy(enrollAddress = address) }
 
+    fun setApiSni(sni: String) = update { it.copy(apiSni = sni) }
+
+    fun setApiHost(host: String) = update { it.copy(apiHost = host) }
+
     fun setFragment(on: Boolean) = update { it.copy(fragment = on) }
 
     fun setFragmentSize(size: String) = update { it.copy(fragmentSize = size) }
@@ -237,6 +241,8 @@ class AetherKeysViewModel(
         @StringRes
         internal fun messageOf(problem: AetherKeys.Problem): Int = when (problem) {
             AetherKeys.Problem.INVALID_ENROLL_ADDRESS -> R.string.aether_keys_invalid_enroll_address
+            AetherKeys.Problem.INVALID_API_SNI -> R.string.aether_keys_invalid_api_sni
+            AetherKeys.Problem.INVALID_API_HOST -> R.string.aether_keys_invalid_api_host
             AetherKeys.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
             AetherKeys.Problem.INVALID_ECH_DNS -> R.string.aether_invalid_ech_dns
             AetherKeys.Problem.INVALID_ECH_DOMAIN -> R.string.aether_invalid_ech_domain

@@ -616,8 +616,14 @@
     <string name="aether_invalid_hop">Write an address and a port, such as 162.159.192.1:2408</string>
     <string name="aether_same_hop">The two hops must be different addresses</string>
     <string name="aether_invalid_fragment">Use a number or a range such as 16-32: size 1–4096 bytes, delay 0–1000 ms</string>
-    <string name="aether_listen_port_taken">The core cannot listen on the local proxy port of the app, nor on the port three above the Aether listen port; change the Aether listen port in the settings, or the ports of the command</string>
+    <string name="aether_listen_port_taken">Port %1$d, which the Aether core listens on, is taken by an inbound of the configuration, such as the local proxy or the port three above the Aether listen port; change the Aether listen port in the settings, or the ports of the command</string>
     <string name="aether_secondary_port_taken">An inbound of this configuration already listens on %1$d, the port three above the Aether listen port, which the Aether core dials out through; change the Aether listen port in the settings</string>
+    <string name="aether_listen_port_in_use">Port %1$d, which the Aether core listens on, is in use by another app; change the Aether listen port in the settings, or the ports of the command</string>
+    <string name="aether_secondary_port_in_use">Port %1$d, three above the Aether listen port, which Xray opens for the Aether core to dial out through, is in use by another app; change the Aether listen port in the settings</string>
+    <string name="aether_listen_port_invalid">The Aether command tells the core to listen on %1$d, which is no port (1 to 65535); change the ports of the command</string>
+    <string name="aether_listen_address_invalid">The Aether command gives %1$s an address the core does not take; write an IP address and a port after it, such as 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">The Aether command gives %1$s an address the app does not connect to: the app connects to the core on 127.0.0.1, so write 127.0.0.1, or 0.0.0.0 for every address, and a port after it</string>
+    <string name="aether_listen_port_shared">The Aether command tells the core to listen on %1$d with two of its listeners (a listener the command leaves out still listens: the one the app dials on the Aether listen port, any other on the core\'s default, 1819, 1820 or 1821); give each listener a port of its own</string>
     <string name="aether_lab_psiphon">Psiphon</string>
     <string name="aether_lab_psiphon_mode">Psiphon connection</string>
     <string name="aether_lab_psiphon_cdn_ips">CDN fronting IPs</string>
@@ -665,6 +671,7 @@
     <string name="aether_unsupported_abi">The Aether core is not available for this device</string>
     <string name="aether_core_stopped">The Aether core stopped running</string>
     <string name="aether_core_stopped_no_ech_key">The Aether core stopped: ECH is on, but no usable ECH key was found. Without one, the server name would have gone out in the clear.</string>
+    <string name="aether_core_stopped_chain_ended">Tor or Psiphon inside the Aether tunnel ended, so the connection was stopped: %1$s</string>
     <string name="aether_core_connecting">The Aether core is still connecting</string>
     <string name="menu_item_import_config_manually_aether">Add Aether config manually</string>
     <string name="aether_action_renew_key">Get new WARP keys…</string>
@@ -701,6 +708,13 @@
     <string name="aether_keys_hint_ech">Hides the server name of the calls to the WARP API; without a usable ECH key, no WARP key is requested</string>
     <string name="aether_lab_fingerprint">Fingerprint</string>
     <string name="aether_keys_invalid_enroll_address">The API address must be an IP address or a domain name, with or without a port, such as 188.114.97.6:443 or [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">API server name (SNI)</string>
+    <string name="aether_keys_lab_api_host">API host</string>
+    <string name="aether_keys_hint_enroll_address">Leave blank for the address of the API server name</string>
+    <string name="aether_keys_hint_api_sni">Leave blank for the API host</string>
+    <string name="aether_keys_hint_api_host">Leave blank for api.devices.cloudflare.com, then api.cloudflareclient.com if it gets no answer and the server name is blank too. Cloudflare refuses a server name that differs from the host</string>
+    <string name="aether_keys_invalid_api_sni">The API server name must be a domain name, such as api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">The API host must be a domain name, such as api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">The command has to register keys: --register followed by all, wg, masque, mim, gool-classic (WARP-in-WARP) or gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">The core\'s output and the WARP keys appear here</string>
     <string name="aether_scan_blocked">Disconnect the Aether profile before scanning; a scan would open a second tunnel on the running connection\'s key</string>
@@ -778,5 +792,9 @@
         <item>GFW</item>
         <item>Aggressive</item>
     </string-array>
+    <string name="sub_info_open_support">Open support link</string>
+    <string name="sub_info_open_page">Open subscription page</string>
+    <string name="sub_info_traffic" translatable="false">%1$s / %2$s</string>
+    <string name="sub_info_unlimited">Unlimited</string>
 
 </resources>

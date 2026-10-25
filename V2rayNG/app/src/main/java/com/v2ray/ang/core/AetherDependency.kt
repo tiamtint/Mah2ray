@@ -206,10 +206,9 @@ sealed interface AetherDependency {
         /**
          * True when an inbound of the configuration [content], as it is handed to Xray, listens on
          * [port]. The Aether core has to listen there on the loopback address, and Xray comes first:
-         * the core only binds once its tunnel is up. The Aether outbound would then dial the inbound of
-         * its own configuration until the core gives up. This covers what the profile editor cannot
-         * see: a local proxy port changed later or picked at random, an imported profile, and the
-         * inbounds of a custom configuration.
+         * the core would find the port taken as it starts and stop, saying so in its own words only.
+         * This covers what the profile editor cannot see: a local proxy port changed later or picked
+         * at random, an imported profile, and the inbounds of a custom configuration.
          */
         fun inboundListensOn(content: String, port: Int): Boolean {
             val config = try {

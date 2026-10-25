@@ -609,8 +609,14 @@
     <string name="aether_invalid_hop">نشانی و پورت را با هم بنویسید، مثل 162.159.192.1:2408</string>
     <string name="aether_same_hop">دو مسیر باید نشانی متفاوت داشته باشند</string>
     <string name="aether_invalid_fragment">یک عدد یا بازه مثل 16-32 بنویسید: اندازه 1 تا 4096 بایت، تأخیر 0 تا 1000 میلی‌ثانیه</string>
-    <string name="aether_listen_port_taken">هسته نمی‌تواند روی پورت پروکسی محلی برنامه، یا روی پورتی که سه تا بالاتر از پورت شنود Aether است گوش دهد؛ پورت شنود Aether را در تنظیمات، یا پورت‌های فرمان را تغییر دهید</string>
+    <string name="aether_listen_port_taken">پورت %1$d، که هستهٔ Aether روی آن گوش می‌دهد، در اختیار یکی از inboundهای این پیکربندی است، مانند پورت پروکسی محلی یا پورتی که سه تا بالاتر از پورت شنود Aether است؛ پورت شنود Aether را در تنظیمات، یا پورت‌های فرمان را تغییر دهید</string>
     <string name="aether_secondary_port_taken">یکی از inboundهای این پیکربندی همین حالا روی %1$d گوش می‌دهد، که سه تا بالاتر از پورت شنود Aether است و هستهٔ Aether از راه آن به بیرون وصل می‌شود؛ پورت شنود Aether را در تنظیمات تغییر دهید</string>
+    <string name="aether_listen_port_in_use">پورت %1$d، که هستهٔ Aether روی آن گوش می‌دهد، در اختیار برنامهٔ دیگری است؛ پورت شنود Aether را در تنظیمات، یا پورت‌های فرمان را تغییر دهید</string>
+    <string name="aether_secondary_port_in_use">پورت %1$d، که سه تا بالاتر از پورت شنود Aether است و Xray آن را باز می‌کند تا هستهٔ Aether از راه آن به بیرون وصل شود، در اختیار برنامهٔ دیگری است؛ پورت شنود Aether را در تنظیمات تغییر دهید</string>
+    <string name="aether_listen_port_invalid">فرمان Aether به هسته می‌گوید روی %1$d گوش دهد که پورت نیست (1 تا 65535)؛ پورت‌های فرمان را تغییر دهید</string>
+    <string name="aether_listen_address_invalid">فرمان Aether به %1$s نشانی‌ای می‌دهد که هسته نمی‌پذیرد؛ پس از آن یک نشانی IP و یک پورت بنویسید، مانند 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">فرمان Aether به %1$s نشانی‌ای می‌دهد که برنامه به آن وصل نمی‌شود: برنامه از راه 127.0.0.1 به هسته وصل می‌شود؛ بنابراین پس از آن 127.0.0.1 (یا 0.0.0.0 برای همهٔ نشانی‌ها) و یک پورت بنویسید</string>
+    <string name="aether_listen_port_shared">فرمان Aether به هسته می‌گوید با دو شنونده روی %1$d گوش دهد (شنونده‌ای که فرمان نامی از آن نمی‌برد باز هم گوش می‌دهد: آنکه برنامه به آن وصل می‌شود روی پورت شنود Aether، و بقیه روی پورت پیش‌فرض هسته: 1819، 1820 یا 1821)؛ به هر شنونده پورت جداگانه‌ای بدهید</string>
     <string name="aether_lab_psiphon">سایفون</string>
     <string name="aether_lab_psiphon_mode">نحوه اتصال سایفون</string>
     <string name="aether_lab_psiphon_cdn_ips">آی‌پی‌های CDN</string>
@@ -658,6 +664,7 @@
     <string name="aether_unsupported_abi">هسته Aether برای این دستگاه در دسترس نیست</string>
     <string name="aether_core_stopped">هسته Aether متوقف شده است</string>
     <string name="aether_core_stopped_no_ech_key">هسته Aether متوقف شد: ECH روشن است ولی هیچ کلید ECH قابل استفاده‌ای پیدا نشد. بدون آن، نام سرور به‌صورت آشکار فرستاده می‌شد.</string>
+    <string name="aether_core_stopped_chain_ended">تور یا سایفون درون تونل Aether از کار افتاد، پس اتصال متوقف شد: %1$s</string>
     <string name="aether_core_connecting">هسته Aether هنوز در حال اتصال است</string>
     <string name="menu_item_import_config_manually_aether">افزودن دستی کانفیگ Aether</string>
     <string name="aether_action_renew_key">دریافت کلیدهای جدید WARP…</string>
@@ -694,6 +701,13 @@
     <string name="aether_keys_hint_ech">نام سرور را در درخواست‌های WARP API پنهان می‌کند؛ بدون کلید ECH قابل استفاده، هیچ کلید WARP درخواست نمی‌شود</string>
     <string name="aether_lab_fingerprint">اثرانگشت</string>
     <string name="aether_keys_invalid_enroll_address">نشانی API باید یک نشانی IP یا نام دامنه باشد، با پورت یا بدون آن، مثل 188.114.97.6:443 یا [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">نام سرور API (SNI)</string>
+    <string name="aether_keys_lab_api_host">میزبان API</string>
+    <string name="aether_keys_hint_enroll_address">خالی بگذارید تا نشانی نام سرور API استفاده شود</string>
+    <string name="aether_keys_hint_api_sni">خالی بگذارید تا میزبان API استفاده شود</string>
+    <string name="aether_keys_hint_api_host">خالی بگذارید تا api.devices.cloudflare.com استفاده شود؛ اگر پاسخی ندهد و نام سرور هم خالی باشد، api.cloudflareclient.com استفاده می‌شود. Cloudflare نام سروری را که با میزبان فرق داشته باشد نمی‌پذیرد</string>
+    <string name="aether_keys_invalid_api_sni">نام سرور API باید نام دامنه باشد، مانند api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">میزبان API باید نام دامنه باشد، مانند api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">فرمان باید کلید ثبت کند: --register و پس از آن all، wg، masque، mim، gool-classic (WARP-in-WARP) یا gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">خروجی هسته و کلیدهای WARP اینجا نمایش داده می‌شود</string>
     <string name="aether_scan_blocked">پیش از اسکن، اتصال Aether را قطع کنید؛ اسکن یک تونل دوم با کلید اتصال فعلی باز می‌کند</string>
@@ -771,5 +785,8 @@
         <item>GFW</item>
         <item>شدید</item>
     </string-array>
+    <string name="sub_info_open_support">باز کردن لینک پشتیبانی</string>
+    <string name="sub_info_open_page">باز کردن صفحه اطلاعات اشتراک</string>
+    <string name="sub_info_unlimited">نامحدود</string>
 
 </resources>

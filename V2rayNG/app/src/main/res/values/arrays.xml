@@ -233,6 +233,7 @@
     </string-array>
     <string-array name="aether_fingerprint_entries" translatable="false">
         <item>Chrome</item>
+        <item>Chrome 120</item>
         <item>Firefox</item>
         <item>Semi-Python</item>
         <item>Go</item>
@@ -254,8 +255,15 @@
         <item>consumer-masque.cloudflareclient.com</item>
         <item>consumer-masque-proxy.cloudflareclient.com</item>
     </string-array>
+    <!-- The two names of the WARP API, as the core goes by them: the WARP keys page offers them for its API address,
+         server name and host, which stay blank, the core's own, unless one is picked or written. -->
+    <string-array name="aether_api_name_options" translatable="false">
+        <item>api.devices.cloudflare.com</item>
+        <item>api.cloudflareclient.com</item>
+    </string-array>
     <string-array name="aether_fingerprint_values" translatable="false">
         <item>chrome</item>
+        <item>chrome-120</item>
         <item>firefox</item>
         <item>semi-python</item>
         <item>go</item>

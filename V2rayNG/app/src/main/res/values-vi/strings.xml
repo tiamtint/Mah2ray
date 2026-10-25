@@ -607,8 +607,14 @@
     <string name="aether_invalid_hop">Nhập địa chỉ và cổng, ví dụ 162.159.192.1:2408</string>
     <string name="aether_same_hop">Hai chặng phải có địa chỉ khác nhau</string>
     <string name="aether_invalid_fragment">Nhập một số hoặc khoảng như 16-32: kích thước 1–4096 byte, độ trễ 0–1000 ms</string>
-    <string name="aether_listen_port_taken">Lõi không thể lắng nghe trên cổng proxy cục bộ của ứng dụng, hay trên cổng lớn hơn cổng lắng nghe của Aether ba đơn vị; hãy đổi cổng lắng nghe của Aether trong phần cài đặt, hoặc các cổng của lệnh</string>
+    <string name="aether_listen_port_taken">Cổng %1$d, nơi lõi Aether lắng nghe, đã bị một inbound của cấu hình chiếm, như cổng proxy cục bộ hoặc cổng lớn hơn cổng lắng nghe của Aether ba đơn vị; hãy đổi cổng lắng nghe của Aether trong phần cài đặt, hoặc các cổng của lệnh</string>
     <string name="aether_secondary_port_taken">Một inbound của cấu hình này đã lắng nghe trên %1$d, là cổng lớn hơn cổng lắng nghe của Aether ba đơn vị, qua đó lõi Aether kết nối ra ngoài; hãy đổi cổng lắng nghe của Aether trong phần cài đặt</string>
+    <string name="aether_listen_port_in_use">Cổng %1$d, nơi lõi Aether lắng nghe, đang được một ứng dụng khác sử dụng; hãy đổi cổng lắng nghe của Aether trong phần cài đặt, hoặc các cổng của lệnh</string>
+    <string name="aether_secondary_port_in_use">Cổng %1$d, lớn hơn cổng lắng nghe của Aether ba đơn vị, là cổng Xray mở để lõi Aether kết nối ra ngoài, đang được một ứng dụng khác sử dụng; hãy đổi cổng lắng nghe của Aether trong phần cài đặt</string>
+    <string name="aether_listen_port_invalid">Lệnh Aether bảo lõi lắng nghe trên %1$d, nhưng đó không phải là cổng (từ 1 đến 65535); hãy đổi các cổng của lệnh</string>
+    <string name="aether_listen_address_invalid">Lệnh Aether cho %1$s một địa chỉ mà lõi không nhận; hãy viết sau nó một địa chỉ IP và một cổng, chẳng hạn 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">Lệnh Aether cho %1$s một địa chỉ mà ứng dụng không kết nối tới: ứng dụng kết nối với lõi qua 127.0.0.1, vì vậy hãy viết sau nó 127.0.0.1 (hoặc 0.0.0.0 cho mọi địa chỉ) và một cổng</string>
+    <string name="aether_listen_port_shared">Lệnh Aether bảo lõi lắng nghe trên %1$d bằng hai trình lắng nghe của nó (trình lắng nghe mà lệnh bỏ qua vẫn lắng nghe: trình mà ứng dụng kết nối tới nằm trên cổng lắng nghe của Aether, các trình khác nằm trên cổng mặc định của lõi: 1819, 1820 hoặc 1821); hãy cho mỗi trình lắng nghe một cổng riêng</string>
     <string name="aether_lab_psiphon">Psiphon</string>
     <string name="aether_lab_psiphon_mode">Kết nối Psiphon</string>
     <string name="aether_lab_psiphon_cdn_ips">IP CDN fronting</string>
@@ -656,6 +662,7 @@
     <string name="aether_unsupported_abi">Lõi Aether không khả dụng cho thiết bị này</string>
     <string name="aether_core_stopped">Lõi Aether đã dừng chạy</string>
     <string name="aether_core_stopped_no_ech_key">Lõi Aether đã dừng: ECH đang bật nhưng không tìm thấy khóa ECH dùng được. Không có khóa, tên máy chủ sẽ bị gửi đi ở dạng rõ.</string>
+    <string name="aether_core_stopped_chain_ended">Tor hoặc Psiphon bên trong đường hầm Aether đã dừng, nên kết nối đã bị dừng: %1$s</string>
     <string name="aether_core_connecting">Lõi Aether vẫn đang kết nối</string>
     <string name="menu_item_import_config_manually_aether">Thêm cấu hình Aether thủ công</string>
     <string name="aether_action_renew_key">Lấy khóa WARP mới…</string>
@@ -692,6 +699,13 @@
     <string name="aether_keys_hint_ech">Ẩn tên máy chủ trong các yêu cầu tới WARP API; không có khóa ECH dùng được thì không yêu cầu khóa WARP nào</string>
     <string name="aether_lab_fingerprint">Fingerprint</string>
     <string name="aether_keys_invalid_enroll_address">Địa chỉ API phải là địa chỉ IP hoặc tên miền, có hoặc không có cổng, ví dụ 188.114.97.6:443 hoặc [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">Tên máy chủ API (SNI)</string>
+    <string name="aether_keys_lab_api_host">Host API</string>
+    <string name="aether_keys_hint_enroll_address">Để trống để dùng địa chỉ của tên máy chủ API</string>
+    <string name="aether_keys_hint_api_sni">Để trống để dùng host API</string>
+    <string name="aether_keys_hint_api_host">Để trống để dùng api.devices.cloudflare.com, rồi api.cloudflareclient.com nếu không có phản hồi và tên máy chủ cũng để trống. Cloudflare từ chối tên máy chủ khác với host</string>
+    <string name="aether_keys_invalid_api_sni">Tên máy chủ API phải là một tên miền, ví dụ api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">Host API phải là một tên miền, ví dụ api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">Lệnh phải đăng ký khóa: --register theo sau là all, wg, masque, mim, gool-classic (WARP-in-WARP) hoặc gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">Đầu ra của lõi và các khóa WARP sẽ hiển thị ở đây</string>
     <string name="aether_scan_blocked">Hãy ngắt kết nối Aether trước khi quét; việc quét sẽ mở một đường hầm thứ hai bằng khóa của kết nối hiện tại</string>
@@ -769,5 +783,8 @@
         <item>GFW</item>
         <item>Mạnh</item>
     </string-array>
+    <string name="sub_info_open_support">Mở liên kết hỗ trợ</string>
+    <string name="sub_info_open_page">Mở trang thông tin đăng ký</string>
+    <string name="sub_info_unlimited">Không giới hạn</string>
 
 </resources>

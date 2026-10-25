@@ -14,10 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # The stable release aether's own release workflow built with; pinned so a new stable
-      # release cannot change or break the release build on its own. Bump it together with
-      # the aether submodule.
-      RUST_TOOLCHAIN: "1.99.0"
+      # The latest stable release, as aether's own release workflow builds with. The libaether
+      # cache is keyed by the rustc it installs, so a new stable release builds the core afresh.
+      RUST_TOOLCHAIN: "stable"
       # The Go line the Psiphon client's go.mod asks for, which also covers lyrebird's older one;
       # aether/psiphon-build.sh and aether/pt-build.sh pin the programs themselves. Bump it when a
       # bumped aether submodule pins a program that asks for a newer line.
@@ -67,6 +66,7 @@ jobs:
         key: libhevtun-${{ runner.os }}-${{ env.NDK_HOME }}-${{ hashFiles('.git/modules/hev-socks5-tunnel/HEAD') }}-${{ hashFiles('compile-hevtun.sh') }}
 
     - name: Install Rust
+      id: rust-toolchain
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ env.RUST_TOOLCHAIN }}
@@ -77,7 +77,7 @@ jobs:
       uses: actions/cache/restore@v6
       with:
         path: ${{ github.workspace }}/libs-aether
-        key: libaether-${{ runner.os }}-${{ env.NDK_HOME }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('.git/modules/aether/HEAD') }}-${{ hashFiles('compile-aether.sh') }}
+        key: libaether-${{ runner.os }}-${{ env.NDK_HOME }}-${{ steps.rust-toolchain.outputs.cachekey }}-${{ hashFiles('.git/modules/aether/HEAD') }}-${{ hashFiles('compile-aether.sh') }}
 
     - name: Build libaether
       if: steps.cache-libaether-restore.outputs.cache-hit != 'true'
@@ -89,7 +89,7 @@ jobs:
       uses: actions/cache/save@v6
       with:
         path: ${{ github.workspace }}/libs-aether
-        key: libaether-${{ runner.os }}-${{ env.NDK_HOME }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('.git/modules/aether/HEAD') }}-${{ hashFiles('compile-aether.sh') }}
+        key: libaether-${{ runner.os }}-${{ env.NDK_HOME }}-${{ steps.rust-toolchain.outputs.cachekey }}-${{ hashFiles('.git/modules/aether/HEAD') }}-${{ hashFiles('compile-aether.sh') }}
 
     - name: Install Go
       uses: actions/setup-go@v5
@@ -170,7 +170,7 @@ jobs:
         out-file-path: V2rayNG/app/libs/
 
     - name: Setup Java
-      uses: actions/setup-java@v6.0.1
+      uses: actions/setup-java@v6.1.0
       with:
         distribution: 'temurin'
         java-version: '21'

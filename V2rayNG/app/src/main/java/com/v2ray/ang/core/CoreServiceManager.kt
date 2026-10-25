@@ -165,8 +165,20 @@ object CoreServiceManager {
         startNetworkMonitor(service)
     }
 
+    /**
+     * Builds the configuration and starts Xray and the Aether core on it. A reload passes [goesOn], which says
+     * whether it still goes on; it is asked once the configuration is built and again once the ports of its
+     * Aether session were checked, the two steps that can take seconds.
+     *
+     * @return false when [goesOn] said no; nothing of this attempt was started then.
+     */
     @Throws(Exception::class)
-    private fun launchCore(service: Service, vpnInterface: ParcelFileDescriptor?, isReload: Boolean = false) {
+    private fun launchCore(
+        service: Service,
+        vpnInterface: ParcelFileDescriptor?,
+        isReload: Boolean = false,
+        goesOn: () -> Boolean = { true },
+    ): Boolean {
         val guid = MmkvManager.getSelectServer() ?: error("No server selected")
         val config = MmkvManager.decodeServerConfig(guid) ?: error("Failed to decode server config")
 
@@ -177,6 +189,9 @@ object CoreServiceManager {
             if (result.localizedError) throw StartFailure(result.errorMessage)
             error(result.errorMessage.ifBlank { "Failed to get V2Ray config" })
         }
+        // The build can take seconds, resolving server names: a stop, or a stop and a new start, that came
+        // meanwhile owns the cores, which a reload must leave alone from here on.
+        if (!goesOn()) return false
 
         cancelAetherWarmUp()
         // Starting a configuration ends the config tests, whatever the configuration: that is what a start
@@ -199,22 +214,21 @@ object CoreServiceManager {
             if (!AetherCoreManager.isSupported(service)) {
                 throw StartFailure(service.getString(R.string.aether_unsupported_abi))
             }
-            // Xray would take the port first, and the Aether outbound would dial the configuration's own inbound.
-            val aetherPort = aether.ports.firstOrNull { AetherDependency.inboundListensOn(result.content, it) }
-            if (aetherPort != null) {
-                LogUtil.w(
-                    AppConfig.TAG,
-                    "StartCore-Manager: ${service.javaClass.simpleName} ${if (isReload) "reload" else "start"} refused, " +
-                        "an inbound of the configuration listens on the Aether port $aetherPort, guid=$guid"
-                )
-                // A reload still has the previous session's core; without Xray it serves nothing.
-                AetherCoreManager.stop()
-                throw StartFailure(service.getString(R.string.aether_listen_port_taken))
+            // A command the core could not run as told, or a port Xray would take first: see refusalOf, which
+            // checks them in the editor's order.
+            AetherCoreManager.refusalOf(aether, result.content)?.let { refusal ->
+                refuseAether(service, guid, isReload, refusal.reason) { service.getString(refusal.message, refusal.argument) }
             }
         }
         // A reload still has the previous session's core; it ends before Xray starts again. The new core,
         // if any, starts once Xray listens, see launchNativeCore.
         AetherCoreManager.stop()
+        if (aether != null) {
+            checkAetherPorts(service, guid, aether, result.content, isReload)
+            // The check can take seconds. A reload starts Xray again only while the monitor that asked for it is
+            // still the service's (the handover rule of NetworkMonitor): a stop that came meanwhile owns what follows.
+            if (!goesOn()) return false
+        }
 
         try {
             launchNativeCore(service, guid, config, aether, result.content, vpnInterface, isReload)
@@ -222,6 +236,60 @@ object CoreServiceManager {
             // Setup failed after this attempt spawned the Aether process; release it with the rest.
             AetherCoreManager.stop()
             throw e
+        }
+        return true
+    }
+
+    /**
+     * Refuses the session, for [reason] in the log and with [message] on the main screen. A reload still has the
+     * previous session's core, which without Xray serves nothing; it ends too.
+     */
+    private fun refuseAether(service: Service, guid: String, isReload: Boolean, reason: String, message: () -> String): Nothing {
+        LogUtil.w(
+            AppConfig.TAG,
+            "StartCore-Manager: ${service.javaClass.simpleName} ${if (isReload) "reload" else "start"} refused, $reason, guid=$guid"
+        )
+        AetherCoreManager.stop()
+        throw StartFailure(message())
+    }
+
+    /**
+     * Refuses the session when something else holds a loopback port it takes; see
+     * AetherCoreManager.checkSessionPorts. Nothing of the session runs yet, and a reload has stopped Xray
+     * and the previous core already, so a refusal leaves nothing running.
+     */
+    @Throws(Exception::class)
+    private fun checkAetherPorts(service: Service, guid: String, aether: AetherCore, content: String, isReload: Boolean) {
+        val attempt = "${service.javaClass.simpleName} ${if (isReload) "reload" else "start"}"
+        val ports = AetherCoreManager.sessionPorts(aether, content)
+        // Leak prevention: Xray's Aether outbounds dial the core's port as soon as Xray starts, before the core
+        // binds it, so a program listening there would take that traffic. The ports are therefore checked before
+        // Xray starts, and the start waits for the check, on the main thread of onStartCommand as well, at most
+        // PORT_CHECK_WAIT_MS: the check runs on the core's executor, behind the stop of the previous core.
+        val check = AetherCoreManager.checkSessionPorts(
+            service,
+            aether,
+            ports,
+            afterProbes = !isReload,
+            timeoutMs = AetherCoreManager.PORT_CHECK_WAIT_MS,
+        )
+        when (check) {
+            AetherCoreManager.PortCheck.Free -> Unit
+            is AetherCoreManager.PortCheck.Taken -> {
+                LogUtil.w(AppConfig.TAG, "StartCore-Manager: $attempt refused, port ${check.port} of the Aether session is taken, guid=$guid")
+                throw StartFailure(service.getString(AetherCoreManager.takenMessage(check), check.port))
+            }
+
+            is AetherCoreManager.PortCheck.Unchecked -> {
+                val refused = "StartCore-Manager: $attempt refused, the ports of the Aether session could not be checked"
+                val cause = check.cause
+                if (cause != null) {
+                    LogUtil.w(AppConfig.TAG, "$refused, guid=$guid", cause)
+                } else {
+                    LogUtil.w(AppConfig.TAG, "$refused within ${AetherCoreManager.PORT_CHECK_WAIT_MS} ms, guid=$guid")
+                }
+                throw IllegalStateException("The ports of the Aether session could not be checked", cause)
+            }
         }
     }
 
@@ -344,7 +412,7 @@ object CoreServiceManager {
                 AppConfig.TAG,
                 "StartCore-Manager: Aether core exited while running, stopping ${service.javaClass.simpleName}, guid=$guid"
             )
-            MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, service.getString(AetherCoreManager.stoppedMessage()))
+            MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, AetherCoreManager.stoppedMessage(service))
             control.stopService()
         }
     }
@@ -404,46 +472,66 @@ object CoreServiceManager {
         if (networkMonitor != null) return
 
         val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        // PattNG: the name alone, so that a monitor left registered does not keep the service alive.
+        val runMode = service.javaClass.simpleName
         networkMonitor = NetworkMonitor(
             connectivity = connectivity,
             onUnderlyingNetworksChanged = { networks -> serviceControl?.get()?.setUnderlyingNetworks(networks) },
-            onHandover = { reloadCore() },
+            claimHandover = { monitor -> claimReload(askedBy = monitor) },
+            onHandover = { monitor -> reloadCore(askedBy = monitor) },
+            describe = { "$runMode, guid=${MmkvManager.getSelectServer()}" },
         ).also { it.register() }
     }
 
     /**
+     * Claims the reload a handover seen by [askedBy] asks for, and marks it under way, so that a second
+     * handover does not begin one as well: only while [askedBy] is the service's monitor still, Xray runs
+     * and no reload is under way. The handover rule of NetworkMonitor: it calls this under the gate its
+     * unregister() closes first, so no reload is claimed once that has returned, and it has to be short. A
+     * stop unregisters and clears the monitor and a new start brings its own, so a handover of an earlier
+     * monitor reloads nothing; a stop that comes during the reload is told by goesOn and afterwards.
+     */
+    private fun claimReload(askedBy: NetworkMonitor): Boolean =
+        ReloadOutcome.handoverReloads(askedBy, current = networkMonitor, coreRunning = isRunning(), reloading = isReloading)
+            .also { if (it) isReloading = true }
+
+    /**
      * Restarts the core in place after the upstream network changed: the service, the notification
-     * and the VPN interface all stay up, so nothing of this is visible.
+     * and the VPN interface all stay up, so nothing of this is visible. PattNG: it runs once
+     * [claimReload] has claimed the reload, and ends it.
      *
      * The config is rebuilt on purpose, outbound server domains are resolved while building it and
      * an address resolved on a network that is gone can be unusable on the new one.
      *
      * @return True if the core is running again.
      */
-    private fun reloadCore(): Boolean {
-        if (isReloading) return false
-        val service = getService() ?: return false
-        if (!isRunning()) return false
-        // Only a monitor asks for a reload, and a stop clears it: without one the service is going down
-        // already, and a stop that arrives during the reload is told by it afterwards.
-        val monitor = networkMonitor ?: return false
+    private fun reloadCore(askedBy: NetworkMonitor): Boolean {
+        val service = getService() ?: run {
+            isReloading = false
+            return false
+        }
 
         try {
             val tunFd = currentVpnInterface
 
-            isReloading = true
             connectionTestScope.coroutineContext.cancelChildren()
             LogUtil.i(AppConfig.TAG, "StartCore-Manager: Core reload start...")
 
             coreController.stopLoop()
-            launchCore(service, tunFd, isReload = true)
-
-            LogUtil.i(AppConfig.TAG, "StartCore-Manager: Core reload finished")
+            if (launchCore(service, tunFd, isReload = true, goesOn = { ReloadOutcome.goesOn(askedBy = askedBy, current = networkMonitor) })) {
+                LogUtil.i(AppConfig.TAG, "StartCore-Manager: Core reload finished")
+            } else {
+                LogUtil.i(AppConfig.TAG, "StartCore-Manager: Core reload given up, the service was stopped while the configuration was built or the Aether ports were checked")
+            }
         } catch (e: Exception) {
             val message = e.message?.takeUnless { it.isBlank() } ?: e.javaClass.simpleName
-            LogUtil.e(AppConfig.TAG, "StartCore-Manager: Failed to reload core: $message", e)
+            LogUtil.e(
+                AppConfig.TAG,
+                "StartCore-Manager: ${service.javaClass.simpleName} reload failed: $message, guid=${MmkvManager.getSelectServer()}",
+                e
+            )
             // After a stop the screen has been told of it, and after a new start its state is that start's to report.
-            if (networkMonitor === monitor) {
+            if (networkMonitor === askedBy) {
                 MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, userFacingReason(e))
             }
         } finally {
@@ -454,7 +542,7 @@ object CoreServiceManager {
         return when (ReloadOutcome.of(coreRunning = isRunning(), stoppedMeanwhile = networkMonitor == null)) {
             ReloadOutcome.KEEP_RUNNING -> true
             ReloadOutcome.STOP_SERVICE -> {
-                stopServiceAfterFailedReload(monitor)
+                stopServiceAfterFailedReload(askedBy)
                 false
             }
 

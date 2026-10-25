@@ -26,6 +26,7 @@ import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.dto.entities.SubscriptionUsageInfo
 import com.v2ray.ang.dto.entities.WebDavConfig
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
@@ -891,14 +892,16 @@ object MmkvManager {
 
     /**
      * PattNG: ends an update of the subscription [subId] names, once its profiles are stored: [time] is set as when it
-     * was updated, on it as stored then, under the profile index lock, see [changeStoredSubscription], which keeps what
-     * an edit wrote meanwhile; a payload that cannot be read is left as it is. Removed meanwhile, it is not listed
-     * again, and the profiles the update stored for it go too: none stays selected, their list is emptied, then their
-     * payloads go. Whether it is still stored; a refused write is logged.
+     * was updated, and [usageInfo] as the usage its panel sent, replacing the last one, null when it sent none, on it as
+     * stored then, under the profile index lock, see [changeStoredSubscription], which keeps what an edit wrote
+     * meanwhile; a payload that cannot be read is left as it is. Removed meanwhile, it is not listed again, and the
+     * profiles the update stored for it go too: none stays selected, their list is emptied, then their payloads go.
+     * Whether it is still stored; a refused write is logged.
      */
-    fun finishSubscriptionUpdate(subId: String, time: Long): Boolean = withProfileIndexLock {
+    fun finishSubscriptionUpdate(subId: String, time: Long, usageInfo: SubscriptionUsageInfo?): Boolean = withProfileIndexLock {
         val stored = changeStoredSubscription(subId, "with its update time", newIfUnreadable = false) { item ->
             item.lastUpdated = time
+            item.usageInfo = usageInfo
             true
         }
         if (stored != null) return@withProfileIndexLock true

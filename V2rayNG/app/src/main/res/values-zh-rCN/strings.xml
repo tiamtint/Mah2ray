@@ -607,8 +607,14 @@
     <string name="aether_invalid_hop">请填写地址和端口，例如 162.159.192.1:2408</string>
     <string name="aether_same_hop">两个节点的地址必须不同</string>
     <string name="aether_invalid_fragment">请填写数字或范围，例如 16-32：大小 1–4096 字节，间隔 0–1000 毫秒</string>
-    <string name="aether_listen_port_taken">内核不能监听应用的本地代理端口，也不能监听比 Aether 监听端口大 3 的端口；请在设置中更改 Aether 监听端口，或更改命令中的端口</string>
+    <string name="aether_listen_port_taken">Aether 内核监听的端口 %1$d 已被此配置的某个入站占用，例如本地代理端口或比 Aether 监听端口大 3 的端口；请在设置中更改 Aether 监听端口，或更改命令中的端口</string>
     <string name="aether_secondary_port_taken">此配置的某个入站已在 %1$d 上监听，而这是比 Aether 监听端口大 3 的端口，Aether 内核经由它向外连接；请在设置中更改 Aether 监听端口</string>
+    <string name="aether_listen_port_in_use">Aether 内核监听的端口 %1$d 已被其他应用占用；请在设置中更改 Aether 监听端口，或更改命令中的端口</string>
+    <string name="aether_secondary_port_in_use">端口 %1$d 比 Aether 监听端口大 3，Xray 在此开放入站供 Aether 内核向外连接，但它已被其他应用占用；请在设置中更改 Aether 监听端口</string>
+    <string name="aether_listen_port_invalid">Aether 命令让内核监听 %1$d，这不是有效端口（1 到 65535）；请更改命令中的端口</string>
+    <string name="aether_listen_address_invalid">Aether 命令给 %1$s 写了内核不接受的地址；请在它后面写 IP 地址和端口，例如 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">Aether 命令给 %1$s 写了应用不会连接的地址：应用通过 127.0.0.1 连接内核，请在它后面写 127.0.0.1（或表示所有地址的 0.0.0.0）和端口</string>
+    <string name="aether_listen_port_shared">Aether 命令让内核用两个监听器监听 %1$d（命令未写出的监听器仍会监听：应用连接的那个在 Aether 监听端口上，其他的在内核的默认端口上：1819、1820 或 1821）；请为每个监听器指定各自的端口</string>
     <string name="aether_lab_psiphon">Psiphon</string>
     <string name="aether_lab_psiphon_mode">Psiphon 连接方式</string>
     <string name="aether_lab_psiphon_cdn_ips">CDN 前置 IP</string>
@@ -656,6 +662,7 @@
     <string name="aether_unsupported_abi">此设备不支持 Aether 内核</string>
     <string name="aether_core_stopped">Aether 内核已停止运行</string>
     <string name="aether_core_stopped_no_ech_key">Aether 内核已停止：ECH 已开启，但没有找到可用的 ECH 密钥。没有密钥，服务器名称就会以明文发送。</string>
+    <string name="aether_core_stopped_chain_ended">Aether 隧道内的 Tor 或 Psiphon 已结束，因此连接已停止：%1$s</string>
     <string name="aether_core_connecting">Aether 内核仍在连接中</string>
     <string name="menu_item_import_config_manually_aether">手动添加 Aether 配置</string>
     <string name="aether_action_renew_key">获取新的 WARP 密钥…</string>
@@ -692,6 +699,13 @@
     <string name="aether_keys_hint_ech">隐藏 WARP API 请求中的服务器名称；没有可用的 ECH 密钥时不会请求 WARP 密钥</string>
     <string name="aether_lab_fingerprint">Fingerprint</string>
     <string name="aether_keys_invalid_enroll_address">API 地址必须是 IP 地址或域名，可带端口，例如 188.114.97.6:443 或 [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">API 服务器名 (SNI)</string>
+    <string name="aether_keys_lab_api_host">API 主机</string>
+    <string name="aether_keys_hint_enroll_address">留空则使用 API 服务器名的地址</string>
+    <string name="aether_keys_hint_api_sni">留空则使用 API 主机</string>
+    <string name="aether_keys_hint_api_host">留空则使用 api.devices.cloudflare.com；若其无响应且服务器名也留空，则改用 api.cloudflareclient.com。Cloudflare 会拒绝与主机不同的服务器名</string>
+    <string name="aether_keys_invalid_api_sni">API 服务器名必须是域名，例如 api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">API 主机必须是域名，例如 api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">命令必须注册密钥：--register 后跟 all、wg、masque、mim、gool-classic（WARP-in-WARP）或 gool（WireGuard over MASQUE）</string>
     <string name="aether_keys_log_empty">内核输出和 WARP 密钥会显示在这里</string>
     <string name="aether_scan_blocked">请先断开 Aether 连接，再进行扫描；扫描会使用当前连接的密钥打开第二条隧道</string>
@@ -769,5 +783,8 @@
         <item>GFW</item>
         <item>激进</item>
     </string-array>
+    <string name="sub_info_open_support">打开支持链接</string>
+    <string name="sub_info_open_page">打开订阅信息页面</string>
+    <string name="sub_info_unlimited">无限制</string>
 
 </resources>

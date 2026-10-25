@@ -609,8 +609,14 @@
     <string name="aether_invalid_hop">ঠিকানা ও পোর্ট একসাথে লিখুন, যেমন 162.159.192.1:2408</string>
     <string name="aether_same_hop">দুটি হপের ঠিকানা আলাদা হতে হবে</string>
     <string name="aether_invalid_fragment">একটি সংখ্যা বা 16-32 এর মতো পরিসর লিখুন: আকার 1–4096 বাইট, বিলম্ব 0–1000 মিলিসেকেন্ড</string>
-    <string name="aether_listen_port_taken">কোর অ্যাপের স্থানীয় প্রক্সি পোর্টে, বা Aether-এর লিসেন পোর্টের চেয়ে তিন বেশি পোর্টে শুনতে পারবে না; সেটিংসে Aether-এর লিসেন পোর্ট, অথবা কমান্ডের পোর্টগুলো বদলান</string>
+    <string name="aether_listen_port_taken">Aether কোর যে পোর্ট %1$d-এ শোনে, সেটি এই কনফিগারেশনের একটি ইনবাউন্ড দখল করে আছে, যেমন স্থানীয় প্রক্সি পোর্ট বা Aether-এর লিসেন পোর্টের চেয়ে তিন বেশি পোর্ট; সেটিংসে Aether-এর লিসেন পোর্ট, অথবা কমান্ডের পোর্টগুলো বদলান</string>
     <string name="aether_secondary_port_taken">এই কনফিগারেশনের একটি ইনবাউন্ড ইতিমধ্যে %1$d-এ শুনছে, যা Aether-এর লিসেন পোর্টের চেয়ে তিন বেশি এবং যার মধ্য দিয়ে Aether কোর বাইরে সংযোগ করে; সেটিংসে Aether-এর লিসেন পোর্ট বদলান</string>
+    <string name="aether_listen_port_in_use">Aether কোর যে পোর্ট %1$d-এ শোনে, সেটি অন্য একটি অ্যাপ ব্যবহার করছে; সেটিংসে Aether-এর লিসেন পোর্ট, অথবা কমান্ডের পোর্টগুলো বদলান</string>
+    <string name="aether_secondary_port_in_use">পোর্ট %1$d, যা Aether-এর লিসেন পোর্টের চেয়ে তিন বেশি এবং যা Xray খোলে যাতে Aether কোর এটির মধ্য দিয়ে বাইরে সংযোগ করতে পারে, সেটি অন্য একটি অ্যাপ ব্যবহার করছে; সেটিংসে Aether-এর লিসেন পোর্ট বদলান</string>
+    <string name="aether_listen_port_invalid">Aether কমান্ড কোরকে %1$d-এ শুনতে বলে, যা কোনো পোর্ট নয় (1 থেকে 65535); কমান্ডের পোর্টগুলো বদলান</string>
+    <string name="aether_listen_address_invalid">Aether কমান্ড %1$s-কে এমন একটি ঠিকানা দেয় যা কোর নেয় না; এর পরে একটি IP ঠিকানা ও একটি পোর্ট লিখুন, যেমন 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">Aether কমান্ড %1$s-কে এমন একটি ঠিকানা দেয় যেখানে অ্যাপ সংযোগ করে না: অ্যাপ 127.0.0.1 দিয়ে কোরে সংযোগ করে, তাই এর পরে 127.0.0.1 (বা সব ঠিকানার জন্য 0.0.0.0) ও একটি পোর্ট লিখুন</string>
+    <string name="aether_listen_port_shared">Aether কমান্ড কোরকে তার দুটি লিসেনার দিয়ে %1$d-এ শুনতে বলে (কমান্ড যে লিসেনারের উল্লেখ করে না, সেটিও শোনে: অ্যাপ যেটিতে সংযোগ করে সেটি Aether-এর লিসেন পোর্টে, অন্যগুলো কোরের ডিফল্ট পোর্টে: 1819, 1820 বা 1821); প্রতিটি লিসেনারকে আলাদা পোর্ট দিন</string>
     <string name="aether_lab_psiphon">Psiphon</string>
     <string name="aether_lab_psiphon_mode">Psiphon সংযোগ</string>
     <string name="aether_lab_psiphon_cdn_ips">CDN ফ্রন্টিং IP</string>
@@ -658,6 +664,7 @@
     <string name="aether_unsupported_abi">এই ডিভাইসের জন্য Aether কোর উপলব্ধ নয়</string>
     <string name="aether_core_stopped">Aether কোর চলা বন্ধ হয়ে গেছে</string>
     <string name="aether_core_stopped_no_ech_key">Aether কোর বন্ধ হয়ে গেছে: ECH চালু আছে, কিন্তু কোনো ব্যবহারযোগ্য ECH কী পাওয়া যায়নি। কী ছাড়া সার্ভারের নাম খোলাখুলি পাঠানো হতো।</string>
+    <string name="aether_core_stopped_chain_ended">Aether টানেলের ভিতরের Tor বা Psiphon বন্ধ হয়ে গেছে, তাই সংযোগ বন্ধ করা হয়েছে: %1$s</string>
     <string name="aether_core_connecting">Aether কোর এখনও সংযোগ করছে</string>
     <string name="menu_item_import_config_manually_aether">ম্যানুয়ালি Aether কনফিগ যোগ করুন</string>
     <string name="aether_action_renew_key">নতুন WARP কী নিন…</string>
@@ -694,6 +701,13 @@
     <string name="aether_keys_hint_ech">WARP API-এর অনুরোধে সার্ভার নাম লুকায়; ব্যবহারযোগ্য ECH কী ছাড়া কোনো WARP কী চাওয়া হয় না</string>
     <string name="aether_lab_fingerprint">ফিঙ্গারপ্রিন্ট</string>
     <string name="aether_keys_invalid_enroll_address">API ঠিকানা একটি IP ঠিকানা বা ডোমেইন নাম হতে হবে, পোর্টসহ বা পোর্ট ছাড়া, যেমন 188.114.97.6:443 বা [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">API সার্ভার নাম (SNI)</string>
+    <string name="aether_keys_lab_api_host">API হোস্ট</string>
+    <string name="aether_keys_hint_enroll_address">API সার্ভার নামের ঠিকানা ব্যবহার করতে খালি রাখুন</string>
+    <string name="aether_keys_hint_api_sni">API হোস্ট ব্যবহার করতে খালি রাখুন</string>
+    <string name="aether_keys_hint_api_host">api.devices.cloudflare.com ব্যবহার করতে খালি রাখুন; সেটি উত্তর না দিলে এবং সার্ভার নামও খালি থাকলে api.cloudflareclient.com ব্যবহার হয়। হোস্ট থেকে আলাদা সার্ভার নাম Cloudflare গ্রহণ করে না</string>
+    <string name="aether_keys_invalid_api_sni">API সার্ভার নাম একটি ডোমেইন নাম হতে হবে, যেমন api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">API হোস্ট একটি ডোমেইন নাম হতে হবে, যেমন api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">কমান্ডটিকে কী নিবন্ধন করতে হবে: --register, তারপর all, wg, masque, mim, gool-classic (WARP-in-WARP) বা gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">কোরের আউটপুট ও WARP কী এখানে দেখা যাবে</string>
     <string name="aether_scan_blocked">স্ক্যান করার আগে Aether সংযোগ বিচ্ছিন্ন করুন; স্ক্যান চলমান সংযোগের কী দিয়ে দ্বিতীয় একটি টানেল খুলবে</string>
@@ -771,5 +785,8 @@
         <item>GFW</item>
         <item>তীব্র</item>
     </string-array>
+    <string name="sub_info_open_support">সাপোর্ট লিঙ্ক খুলুন</string>
+    <string name="sub_info_open_page">সাবস্ক্রিপশন তথ্যের পাতা খুলুন</string>
+    <string name="sub_info_unlimited">সীমাহীন</string>
 
 </resources>

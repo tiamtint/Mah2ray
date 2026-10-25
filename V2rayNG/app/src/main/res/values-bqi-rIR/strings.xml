@@ -609,8 +609,14 @@
     <string name="aether_invalid_hop">نشونی و پورت ره با هم بنویسید، مثل 162.159.192.1:2408</string>
     <string name="aether_same_hop">دو مسیر بایس نشونی جیا داشته بوهن</string>
     <string name="aether_invalid_fragment">یه عدد یا بازه مثل 16-32 بنویسین: اندازه 1 تا 4096 بایت، تأخیر 0 تا 1000 میلی‌ثانیه</string>
-    <string name="aether_listen_port_taken">هسته نیتره رو پورت پروکسی محلی برنامه، یا رو پورتی که سه تا بالاتر زه پورت شنود Aether ـه گوش بیه؛ پورت شنود Aether نه تو تنظیمات، یا پورت‌یای فرمان نه آلشت کنین</string>
+    <string name="aether_listen_port_taken">یه inbound ای پیکربندی پورت %1$d نه، که هسته Aether رو وو گوش ایده، و کار گرؽڌه، چی پورت پروکسی محلی برنامه، یا پورتی که سه تا بالاتر زه پورت شنود Aether ـه؛ پورت شنود Aether نه تو تنظیمات، یا پورت‌یای فرمان نه آلشت کنین</string>
     <string name="aether_secondary_port_taken">یه inbound ای پیکربندی ایسا رو %1$d گوش ایده، که سه تا بالاتر زه پورت شنود Aether ـه وو هسته Aether زه ری وو بیرون وصل ابۊ؛ پورت شنود Aether نه تو تنظیمات آلشت کنین</string>
+    <string name="aether_listen_port_in_use">یه برنامه دیه پورت %1$d نه، که هسته Aether رو وو گوش ایده، و کار گرؽڌه؛ پورت شنود Aether نه تو تنظیمات، یا پورت‌یای فرمان نه آلشت کنین</string>
+    <string name="aether_secondary_port_in_use">یه برنامه دیه پورت %1$d نه، که سه تا بالاتر زه پورت شنود Aether ـه وو Xray وازس اکۊنه تا هسته Aether زه ری وو بیرون وصل بۊ، و کار گرؽڌه؛ پورت شنود Aether نه تو تنظیمات آلشت کنین</string>
+    <string name="aether_listen_port_invalid">فرمان Aether وو هسته ایگه رو %1$d گوش بیه، که پورت نی (1 تا 65535)؛ پورت‌یای فرمان نه آلشت کنین</string>
+    <string name="aether_listen_address_invalid">فرمان Aether وو %1$s یه نشونی ایده که هسته قبولش نیکونه؛ یه نشونی IP وو یه پورت بنویسین، مثل 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">فرمان Aether وو %1$s یه نشونی ایده که برنامه وو وو وصل نیبۊ: برنامه زه ری 127.0.0.1 وو هسته وصل ابۊ، پس 127.0.0.1 (یا 0.0.0.0 سی همه نشونیا) وو یه پورت بنویسین</string>
+    <string name="aether_listen_port_shared">فرمان Aether وو هسته ایگه وا دو تا شنونده رو %1$d گوش بیه (شنونده‌ای که فرمان نومش نیاره باز گوش ایده: اونی که برنامه وو وو وصل ابۊ رو پورت شنود Aether، وو بقیه رو پورت پؽش فرز هسته: 1819، 1820 یا 1821)؛ وو هر شنونده یه پورت جدا بیین</string>
     <string name="aether_lab_psiphon">سایفون</string>
     <string name="aether_lab_psiphon_mode">نحوه اتصال سایفون</string>
     <string name="aether_lab_psiphon_cdn_ips">آی‌پی‌های CDN</string>
@@ -658,6 +664,7 @@
     <string name="aether_unsupported_abi">هسته Aether سی ای دستگاه د دسترس نیه</string>
     <string name="aether_core_stopped">هسته Aether وستاده</string>
     <string name="aether_core_stopped_no_ech_key">هسته Aether وستاده: ECH روشن هئ ولی کلید ECH قابل استفاده‌ای پیدا نبی؛ بی او، نوم سرور بی رمزنگاری فرستاده ابی</string>
+    <string name="aether_core_stopped_chain_ended">تور یا سایفون من تونل Aether وستاد، سی همی اتصال وستاده بی: %1$s</string>
     <string name="aether_core_connecting">هسته Aether هونی وصل ابۊ</string>
     <string name="menu_item_import_config_manually_aether">افزودن دستی کانفیگ Aether</string>
     <string name="aether_action_renew_key">گرفتن کلیدا تازه WARP…</string>
@@ -694,6 +701,13 @@
     <string name="aether_keys_hint_ech">نوم سرور من درخواستا WARP API قایم اکنه؛ بی کلید ECH قابل استفاده، هیچ کلید WARP درخواست نیبۊ</string>
     <string name="aether_lab_fingerprint">جا کلک</string>
     <string name="aether_keys_invalid_enroll_address">نشونی API باید یه نشونی IP یا نوم دامنه بۊ، با پورت یا بی پورت، چی 188.114.97.6:443 یا [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">نوم سرور API (SNI)</string>
+    <string name="aether_keys_lab_api_host">میزبون API</string>
+    <string name="aether_keys_hint_enroll_address">خالی بیلین تا نشونی نوم سرور API استفاده بۊ</string>
+    <string name="aether_keys_hint_api_sni">خالی بیلین تا میزبون API استفاده بۊ</string>
+    <string name="aether_keys_hint_api_host">خالی بیلین تا api.devices.cloudflare.com استفاده بۊ؛ ٱر جواو نده وو نوم سرور هم خالی بۊ، api.cloudflareclient.com استفاده ابۊ. Cloudflare نوم سروری که وا میزبون فرق داشته بۊ رد اکنه</string>
+    <string name="aether_keys_invalid_api_sni">نوم سرور API باید یه نوم دامنه بۊ، چی api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">میزبون API باید یه نوم دامنه بۊ، چی api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">فرمان باید کلید ثبت کنه: --register وو پشت سرس all، wg، masque، mim، gool-classic (WARP-in-WARP) یا gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">خروجی هسته وو کلیدا WARP ایچو نشووݩ داڌه ابۊن</string>
     <string name="aether_scan_blocked">پیش زه اسکن، اتصال Aether نه قطع کنین؛ اسکن یه تونل دوم وا کلید اتصال ایسا وا ایکنه</string>
@@ -771,5 +785,8 @@
         <item>GFW</item>
         <item>شدید</item>
     </string-array>
+    <string name="sub_info_open_support">واز کردن لینگ پشتیوانی</string>
+    <string name="sub_info_open_page">واز کردن صفحه اطلاعات اشتراک</string>
+    <string name="sub_info_unlimited">بی‌حد</string>
 
 </resources>

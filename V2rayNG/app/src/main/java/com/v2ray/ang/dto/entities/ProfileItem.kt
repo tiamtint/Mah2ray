@@ -97,8 +97,8 @@ data class ProfileItem(
     var aetherObfuscation: String? = null,
 
     /**
-     * The ClientHello of the core's TLS handshakes, an AetherFingerprint type: its TLS 1.2 cipher suites and whether it
-     * carries GREASE; null means Chrome's. Only a MASQUE tunnel takes it.
+     * The ClientHello of the core's TLS handshakes, an AetherFingerprint type: its cipher suites, groups, key shares,
+     * signature algorithms and extensions; null means Chrome's. Only a MASQUE tunnel takes it.
      */
     var aetherFingerprint: String? = null,
     var aetherIpVersion: String? = null,

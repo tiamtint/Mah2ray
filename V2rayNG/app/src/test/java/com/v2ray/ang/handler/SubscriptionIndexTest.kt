@@ -5,6 +5,7 @@ import com.tencent.mmkv.MMKV
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.dto.entities.SubscriptionUsageInfo
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -447,7 +448,7 @@ class SubscriptionIndexTest {
         mainValues["SUB_SERVERS_a"] = """["p1","p2"]"""
         mainValues["SELECTED_SERVER"] = "p1"
 
-        assertFalse(MmkvManager.finishSubscriptionUpdate("a", 42L))
+        assertFalse(MmkvManager.finishSubscriptionUpdate("a", 42L, null))
 
         assertFalse("a" in subValues)
         assertEquals("""["b"]""", mainValues["SUB_IDS"])
@@ -465,12 +466,36 @@ class SubscriptionIndexTest {
         mainValues["SUB_SERVERS_a"] = """["p1"]"""
         subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
 
-        assertTrue(MmkvManager.finishSubscriptionUpdate("a", 42L))
+        assertTrue(MmkvManager.finishSubscriptionUpdate("a", 42L, null))
 
         assertEquals(42L, JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)?.lastUpdated)
         assertEquals("""["p1"]""", mainValues["SUB_SERVERS_a"])
         verifyNoInteractions(profiles, raws, affiliations)
         assertTrue(mainWrites.isEmpty())
+    }
+
+    @Test
+    fun anUpdateSetsTheUsageInfoItsPanelSentAndOneWithoutItClearsIt() {
+        // The usage goes onto the subscription as stored, next to what an edit wrote during the download.
+        mainValues["SUB_IDS"] = """["a"]"""
+        subValues["a"] = JsonUtil.toJson(
+            SubscriptionItem(remarks = "Edited meanwhile", usageInfo = SubscriptionUsageInfo(download = 1L, title = "Old"))
+        )
+        val usage = SubscriptionUsageInfo(upload = 2L, download = 3L, total = 10L, expire = 1_900_000_000L, title = "Plan")
+
+        assertTrue(MmkvManager.finishSubscriptionUpdate("a", 42L, usage))
+
+        val stored = JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)
+        assertEquals(usage, stored?.usageInfo)
+        assertEquals(42L, stored?.lastUpdated)
+        assertEquals("Edited meanwhile", stored?.remarks)
+
+        // A panel that stops sending the headers: the box goes.
+        assertTrue(MmkvManager.finishSubscriptionUpdate("a", 43L, null))
+
+        val cleared = JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)
+        assertNull(cleared?.usageInfo)
+        assertEquals(43L, cleared?.lastUpdated)
     }
 
     @Test

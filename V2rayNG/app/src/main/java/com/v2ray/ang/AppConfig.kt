@@ -70,6 +70,8 @@ object AppConfig {
     /** PattNG: the settings of the page that gets new WARP keys, which no profile shares; see AetherKeysSettings. */
     const val PREF_AETHER_KEYS_KIND = "pref_aether_keys_kind"
     const val PREF_AETHER_KEYS_ENROLL_ADDRESS = "pref_aether_keys_enroll_address"
+    const val PREF_AETHER_KEYS_API_SNI = "pref_aether_keys_api_sni"
+    const val PREF_AETHER_KEYS_API_HOST = "pref_aether_keys_api_host"
     const val PREF_AETHER_KEYS_FRAGMENT = "pref_aether_keys_fragment"
     const val PREF_AETHER_KEYS_FRAGMENT_SIZE = "pref_aether_keys_fragment_size"
     const val PREF_AETHER_KEYS_FRAGMENT_DELAY = "pref_aether_keys_fragment_delay"
@@ -205,9 +207,6 @@ object AppConfig {
      */
     const val AETHER_MASQUE_SNI = "www.cloudflare.com"
 
-    /** PattNG: where the Aether core sends the calls to the WARP API, which register and enroll the keys, unless told otherwise. */
-    const val AETHER_ENROLL_ADDRESS = "api.cloudflareclient.com"
-
     const val WIREGUARD_LOCAL_ADDRESS_V4 = "172.16.0.2/32"
     const val WIREGUARD_LOCAL_ADDRESS_V6 = "2606:4700:110:8f81:d551:a0:532e:a2b3/128"
     const val WIREGUARD_LOCAL_MTU = "1420"
@@ -216,6 +215,7 @@ object AppConfig {
 
     /** Shared defaults for settings shown in the UI and consumed by config generation. */
     const val DEFAULT_SOCKS_ENABLE_UDP = true
+    const val DEFAULT_IPV6_ENABLED = true
     const val DEFAULT_OUTBOUND_DOMAIN_RESOLVE_METHOD = "0"
     const val DEFAULT_VPN_BYPASS_LAN = "1"
     const val DEFAULT_HEV_TUNNEL_LOGLEVEL = "warn"

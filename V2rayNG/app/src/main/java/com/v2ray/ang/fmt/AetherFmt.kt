@@ -38,6 +38,10 @@ object AetherFmt : FmtBase() {
         INVALID_ECH_DNS,
         INVALID_ECH_DOMAIN,
         LISTEN_PORT_TAKEN,
+        LISTEN_PORT_SHARED,
+        LISTEN_PORT_INVALID,
+        LISTEN_ADDRESS_INVALID,
+        LISTEN_ADDRESS_UNREACHABLE,
         PSIPHON_NEEDS_MASQUE,
         NEXT_PORT_TAKEN,
         TOR_NEEDS_MASQUE,
@@ -193,6 +197,17 @@ object AetherFmt : FmtBase() {
             ?: normalizeCommand(config, takenPorts, listenPort)
 
     /**
+     * PattNG: the port [Problem.LISTEN_PORT_TAKEN] is about, for its message: the Aether listen port of a profile built
+     * from its settings, or the first port of a command written by hand that [takenPorts] holds, as [normalize] finds
+     * them; null when none is taken.
+     */
+    fun takenListenPort(config: ProfileItem, takenPorts: Set<Int>, listenPort: Int = AetherCoreManager.socksPort): Int? {
+        val command = config.aetherCommand?.trim()
+        if (command.isNullOrEmpty()) return listenPort.takeIf { it in takenPorts }
+        return AetherCore.ofCommand(command, listenPort)?.ports?.firstOrNull { it in takenPorts }
+    }
+
+    /**
      * The core of a profile built from its settings listens on the Aether listen port of the settings,
      * the one port of every such core, which the local proxy may have been moved onto. A command
      * written by hand names its own ports, which [normalizeCommand] checks.
@@ -331,9 +346,10 @@ object AetherFmt : FmtBase() {
     }
 
     /**
-     * Whether [value] is a server name the core's --masque-sni takes, which it checks as it starts: a domain name, with
-     * a trailing dot or without, and no IP address, which the core's parser reads as Go's netip does, see
-     * [CoreOutboundBuilder.isNetipAddress]. A label cannot start or end with '-' either, as for [isEchDomain].
+     * Whether [value] is a server name the core's --masque-sni takes, as do its --api-sni and --api-host, which it checks
+     * as it starts: a domain name, with a trailing dot or without, and no IP address, see
+     * [CoreOutboundBuilder.isNetipAddress], which tells one as the core's Rust parser does for every text a domain name
+     * could be. A label cannot start or end with '-' either, as for [isEchDomain], which the core would take.
      */
     internal fun isMasqueSni(value: String): Boolean {
         val name = value.removeSuffix(".")
@@ -414,14 +430,56 @@ object AetherFmt : FmtBase() {
     private fun commaList(text: String?): String? =
         text?.split(Regex("[,\\s]+"))?.filter { it.isNotEmpty() }?.joinToString(",")?.ifEmpty { null }
 
-    /** A command written in place of the settings has to be one the app can run, on ports nothing else of the app holds. */
+    /**
+     * A command written in place of the settings has to be one the app can run, with a port of its own for each of
+     * its listeners, on ports nothing else of the app holds.
+     */
     private fun normalizeCommand(config: ProfileItem, takenPorts: Set<Int>, listenPort: Int): Problem? {
         val text = config.aetherCommand?.trim().orEmpty()
         config.aetherCommand = text.ifEmpty { null }
         if (text.isEmpty()) return null
         val core = AetherCore.ofCommand(text, listenPort) ?: return Problem.INVALID_COMMAND
+        // PattNG: as a start checks it: a number that is no port, an address the core does not take, one where the app
+        // does not reach the listener it dials, then ports.
+        if (AetherCoreManager.invalidPort(core) != null) return Problem.LISTEN_PORT_INVALID
+        if (core.invalidListener != null) return Problem.LISTEN_ADDRESS_INVALID
+        if (core.unreachableListener != null) return Problem.LISTEN_ADDRESS_UNREACHABLE
+        if (core.sharedPort != null) return Problem.LISTEN_PORT_SHARED
         return if (core.ports.any { it in takenPorts }) Problem.LISTEN_PORT_TAKEN else null
     }
+
+    /**
+     * PattNG: the port [Problem.LISTEN_PORT_SHARED] is about, for its message: the first port two listeners of the command
+     * [config] carries share, as [normalize] finds it; null when none is shared.
+     */
+    fun sharedListenPort(config: ProfileItem, listenPort: Int = AetherCoreManager.socksPort): Int? =
+        commandCore(config, listenPort)?.sharedPort
+
+    /**
+     * PattNG: the number [Problem.LISTEN_PORT_INVALID] is about, for its message: the first port of the command [config]
+     * carries that is no port, as [normalize] finds it; null when there is none.
+     */
+    fun invalidListenPort(config: ProfileItem, listenPort: Int = AetherCoreManager.socksPort): Int? =
+        commandCore(config, listenPort)?.let(AetherCoreManager::invalidPort)
+
+    /**
+     * PattNG: the option [Problem.LISTEN_ADDRESS_INVALID] is about, for its message: the first listener option of the
+     * command [config] carries whose address the core does not take, as [normalize] finds it; null when there is none.
+     */
+    fun invalidListener(config: ProfileItem, listenPort: Int = AetherCoreManager.socksPort): String? =
+        commandCore(config, listenPort)?.invalidListener
+
+    /**
+     * PattNG: the option [Problem.LISTEN_ADDRESS_UNREACHABLE] is about, for its message: the option of the listener the
+     * app dials, when the command [config] carries puts it where the app does not reach it, as [normalize] finds it; null
+     * when there is none.
+     */
+    fun unreachableListener(config: ProfileItem, listenPort: Int = AetherCoreManager.socksPort): String? =
+        commandCore(config, listenPort)?.unreachableListener
+
+    /** PattNG: the core of the command [config] carries in place of its settings, as [normalize] reads it; null for none. */
+    private fun commandCore(config: ProfileItem, listenPort: Int): AetherCore? =
+        config.aetherCommand?.trim()?.takeIf { it.isNotEmpty() }?.let { AetherCore.ofCommand(it, listenPort) }
 
     private fun normalizeFragment(config: ProfileItem): Problem? {
         val inUse = AetherProtocol.fromString(config.aetherProtocol).overMasque &&

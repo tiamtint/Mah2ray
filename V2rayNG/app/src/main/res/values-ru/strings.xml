@@ -613,8 +613,14 @@
     <string name="aether_invalid_hop">Укажите адрес и порт, например 162.159.192.1:2408</string>
     <string name="aether_same_hop">Узлы должны иметь разные адреса</string>
     <string name="aether_invalid_fragment">Укажите число или диапазон, например 16-32: размер 1–4096 байт, задержка 0–1000 мс</string>
-    <string name="aether_listen_port_taken">Ядро не может слушать порт локального прокси приложения или порт на три выше порта прослушивания Aether; измените порт прослушивания Aether в настройках или порты команды</string>
+    <string name="aether_listen_port_taken">Порт %1$d, который слушает ядро Aether, занят одним из входящих (inbound) этой конфигурации, например портом локального прокси или портом на три выше порта прослушивания Aether; измените порт прослушивания Aether в настройках или порты команды</string>
     <string name="aether_secondary_port_taken">Один из входящих (inbound) этой конфигурации уже слушает порт %1$d — порт на три выше порта прослушивания Aether, через который ядро Aether выходит наружу; измените порт прослушивания Aether в настройках</string>
+    <string name="aether_listen_port_in_use">Порт %1$d, который слушает ядро Aether, занят другим приложением; измените порт прослушивания Aether в настройках или порты команды</string>
+    <string name="aether_secondary_port_in_use">Порт %1$d — на три выше порта прослушивания Aether, Xray открывает его, чтобы ядро Aether выходило через него наружу, — занят другим приложением; измените порт прослушивания Aether в настройках</string>
+    <string name="aether_listen_port_invalid">Команда Aether велит ядру слушать %1$d, но это не порт (от 1 до 65535); измените порты команды</string>
+    <string name="aether_listen_address_invalid">Команда Aether даёт %1$s адрес, который ядро не принимает; укажите после него IP-адрес и порт, например 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">Команда Aether даёт %1$s адрес, к которому приложение не подключается: приложение подключается к ядру через 127.0.0.1, поэтому укажите после него 127.0.0.1 (или 0.0.0.0 для всех адресов) и порт</string>
+    <string name="aether_listen_port_shared">Команда Aether велит ядру слушать %1$d двумя своими слушателями (слушатель, которого команда не указывает, всё равно слушает: тот, к которому подключается приложение, — порт прослушивания Aether, остальные — порт ядра по умолчанию: 1819, 1820 или 1821); дайте каждому слушателю свой порт</string>
     <string name="aether_lab_psiphon">Psiphon</string>
     <string name="aether_lab_psiphon_mode">Подключение Psiphon</string>
     <string name="aether_lab_psiphon_cdn_ips">IP-адреса CDN</string>
@@ -662,6 +668,7 @@
     <string name="aether_unsupported_abi">Ядро Aether недоступно для этого устройства</string>
     <string name="aether_core_stopped">Ядро Aether остановлено</string>
     <string name="aether_core_stopped_no_ech_key">Ядро Aether остановлено: ECH включён, но пригодный ключ ECH не найден. Без него имя сервера ушло бы в открытом виде.</string>
+    <string name="aether_core_stopped_chain_ended">Tor или Psiphon внутри туннеля Aether завершился, поэтому соединение остановлено: %1$s</string>
     <string name="aether_core_connecting">Ядро Aether ещё подключается</string>
     <string name="menu_item_import_config_manually_aether">Добавить конфигурацию Aether вручную</string>
     <string name="aether_action_renew_key">Получить новые ключи WARP…</string>
@@ -698,6 +705,13 @@
     <string name="aether_keys_hint_ech">Скрывает имя сервера в запросах к WARP API; без пригодного ключа ECH ключ WARP не запрашивается</string>
     <string name="aether_lab_fingerprint">Отпечаток</string>
     <string name="aether_keys_invalid_enroll_address">Адрес API должен быть IP-адресом или доменным именем, с портом или без, например 188.114.97.6:443 или [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">Имя сервера API (SNI)</string>
+    <string name="aether_keys_lab_api_host">Хост API</string>
+    <string name="aether_keys_hint_enroll_address">Оставьте пустым, чтобы использовать адрес имени сервера API</string>
+    <string name="aether_keys_hint_api_sni">Оставьте пустым, чтобы использовать хост API</string>
+    <string name="aether_keys_hint_api_host">Оставьте пустым, чтобы использовать api.devices.cloudflare.com, а если он не отвечает и имя сервера тоже пустое — api.cloudflareclient.com. Cloudflare отклоняет имя сервера, отличное от хоста</string>
+    <string name="aether_keys_invalid_api_sni">Имя сервера API должно быть доменным именем, например api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">Хост API должен быть доменным именем, например api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">Команда должна регистрировать ключи: --register, а за ним all, wg, masque, mim, gool-classic (WARP-in-WARP) или gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">Здесь появятся вывод ядра и ключи WARP</string>
     <string name="aether_scan_blocked">Отключите профиль Aether, прежде чем сканировать: сканирование откроет второй туннель с ключом текущего подключения</string>
@@ -775,5 +789,8 @@
         <item>GFW</item>
         <item>Агрессивная</item>
     </string-array>
+    <string name="sub_info_open_support">Открыть ссылку поддержки</string>
+    <string name="sub_info_open_page">Открыть страницу подписки</string>
+    <string name="sub_info_unlimited">Без ограничений</string>
 
 </resources>

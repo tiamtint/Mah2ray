@@ -15,7 +15,15 @@ import com.v2ray.ang.fmt.AetherFmt
  */
 data class AetherKeysSettings(
     val kind: AetherKeyKind = AetherKeyKind.ALL,
-    val enrollAddress: String = AppConfig.AETHER_ENROLL_ADDRESS,
+    /** --api-address, blank for the core's own: the server name's address. */
+    val enrollAddress: String = "",
+    /** --api-sni, blank for the core's own: the host. */
+    val apiSni: String = "",
+    /**
+     * --api-host, blank for the core's own: api.devices.cloudflare.com, and with [apiSni] blank too,
+     * api.cloudflareclient.com when that one gets no answer.
+     */
+    val apiHost: String = "",
     val fragment: Boolean = false,
     val fragmentSize: String = "",
     val fragmentDelay: String = "",
@@ -45,11 +53,13 @@ data class AetherKeysSettings(
 object AetherKeys {
 
     /** The option that has the core register keys and end, with the word naming which. */
-    private const val REGISTER = "--register"
+    internal const val REGISTER = "--register"
 
     /** Why settings cannot run. */
     enum class Problem {
         INVALID_ENROLL_ADDRESS,
+        INVALID_API_SNI,
+        INVALID_API_HOST,
         INVALID_FRAGMENT,
         INVALID_ECH_DNS,
         INVALID_ECH_DOMAIN,
@@ -58,16 +68,18 @@ object AetherKeys {
     }
 
     /**
-     * The arguments [settings] give: the keys to register first, the address the calls to the WARP API go to unless
-     * it is left blank, the ClientHello of those calls in pieces when fragmenting is on (--fragment, which a run that
-     * only registers keys applies to those calls alone), sized and spaced as set or as the core has them by default,
-     * and whole without the flag, Encrypted Client Hello on those calls with the key of the ECH domain, asked of
-     * the ECH DNS, and the TLS 1.2 cipher suites of the fingerprint, Chrome's as its rule, with GREASE left out where
-     * the fingerprint has none.
+     * The arguments [settings] give: the keys to register first, the address the calls to the WARP API go to, the
+     * server name of their ClientHello and their HTTP host, each unless it is left blank, the ClientHello of those calls
+     * in pieces when fragmenting is on (--fragment, which a run that only registers keys applies to those calls alone),
+     * sized and spaced as set or as the core has them by default, and whole without the flag, Encrypted Client Hello
+     * on those calls with the key of the ECH domain, asked of the ECH DNS, and the TLS 1.2 cipher suites of the
+     * fingerprint, Chrome's as its rule, and its groups, with GREASE left out where the fingerprint has none.
      */
     fun arguments(settings: AetherKeysSettings): List<String> = buildList {
         addAll(listOf(REGISTER, settings.kind.register))
         settings.enrollAddress.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--api-address", it)) }
+        settings.apiSni.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--api-sni", it)) }
+        settings.apiHost.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--api-host", it)) }
         if (settings.fragment) {
             add("--fragment")
             AetherRange.parse(settings.fragmentSize, AetherRange.FRAGMENT_SIZE)?.let { addAll(listOf("--fragment-size", it.toString())) }
@@ -108,6 +120,11 @@ object AetherKeys {
         if (isCustom(settings)) return Problem.INVALID_COMMAND.takeIf { kindOf(runArguments(settings)) == null }
         val address = settings.enrollAddress.trim()
         if (address.isNotEmpty() && !isEnrollAddress(address)) return Problem.INVALID_ENROLL_ADDRESS
+        // The core checks --api-sni and --api-host as it checks --masque-sni.
+        val sni = settings.apiSni.trim()
+        if (sni.isNotEmpty() && !AetherFmt.isMasqueSni(sni)) return Problem.INVALID_API_SNI
+        val host = settings.apiHost.trim()
+        if (host.isNotEmpty() && !AetherFmt.isMasqueSni(host)) return Problem.INVALID_API_HOST
         if (settings.fragment && !(takesRange(settings.fragmentSize, AetherRange.FRAGMENT_SIZE) && takesRange(settings.fragmentDelay, AetherRange.FRAGMENT_DELAY))) {
             return Problem.INVALID_FRAGMENT
         }

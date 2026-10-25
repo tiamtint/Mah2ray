@@ -225,7 +225,7 @@
     <string name="summary_pref_route_only_enabled">Təyin edilmiş domen adını yalnız marşrutlaşdırma üçün istifadə edin və hədəf ünvanını IP ünvanı olaraq saxlayın.</string>
 
     <string name="title_pref_local_dns_enabled">Yerli DNS-i aktivləşdir</string>
-    <string name="summary_pref_local_dns_enabled">DNS nüvənin DNS modulu tərəfindən emal olunur LAN və ölkə daxili ünvanları yan keçmək lazımdırsa tövsiyə olunur)</string>
+    <string name="summary_pref_local_dns_enabled">DNS nüvənin DNS modulu tərəfindən emal olunur (LAN və ölkə daxili ünvanları yan keçmək lazımdırsa tövsiyə olunur)</string>
 
     <string name="title_pref_fake_dns_enabled">FakeDNS aktivləşdir</string>
     <string name="summary_pref_fake_dns_enabled">FakeDNS domen sorğuları üçün süni IP ünvanları qaytarır (daha sürətlidir, lakin bəzi tətbiqlərlə işləməyə bilər).</string>
@@ -375,7 +375,6 @@
     <string name="title_export_config_count">%d konfiqurasiya ixrac edilsin</string>
     <plurals name="title_update_config_count">
         <item quantity="one">%1$d konfiqurasiya yeniləndi</item>
-
         <item quantity="other">%1$d konfiqurasiya yeniləndi</item>
     </plurals>
     <plurals name="title_update_asset_count">
@@ -610,8 +609,14 @@
     <string name="aether_invalid_hop">Ünvan və port yazın, məsələn 162.159.192.1:2408</string>
     <string name="aether_same_hop">İki halqanın ünvanları fərqli olmalıdır</string>
     <string name="aether_invalid_fragment">Ədəd və ya 16-32 kimi aralıq yazın: ölçü 1–4096 bayt, gecikmə 0–1000 ms</string>
-    <string name="aether_listen_port_taken">Nüvə tətbiqin yerli proksi portunda və Aether dinləmə portundan üç yuxarı olan portda dinləyə bilməz; tənzimləmələrdə Aether dinləmə portunu və ya əmrin portlarını dəyişin</string>
+    <string name="aether_listen_port_taken">Aether nüvəsinin dinlədiyi %1$d portunu bu konfiqurasiyanın bir girişi tutur, məsələn, yerli proksi portu və ya Aether dinləmə portundan üç yuxarı olan port; tənzimləmələrdə Aether dinləmə portunu və ya əmrin portlarını dəyişin</string>
     <string name="aether_secondary_port_taken">Bu konfiqurasiyanın bir girişi artıq %1$d portunda dinləyir; bu, Aether dinləmə portundan üç yuxarı olan və Aether nüvəsinin xaricə qoşulduğu portdur; tənzimləmələrdə Aether dinləmə portunu dəyişin</string>
+    <string name="aether_listen_port_in_use">Aether nüvəsinin dinlədiyi %1$d portu başqa bir tətbiq tərəfindən istifadə olunur; tənzimləmələrdə Aether dinləmə portunu və ya əmrin portlarını dəyişin</string>
+    <string name="aether_secondary_port_in_use">Aether dinləmə portundan üç yuxarı olan və Xray-in Aether nüvəsinin xaricə qoşulması üçün açdığı %1$d portu başqa bir tətbiq tərəfindən istifadə olunur; tənzimləmələrdə Aether dinləmə portunu dəyişin</string>
+    <string name="aether_listen_port_invalid">Aether əmri nüvəyə %1$d üzərində dinləməyi bildirir, lakin bu, port deyil (1-dən 65535-ə qədər); əmrin portlarını dəyişin</string>
+    <string name="aether_listen_address_invalid">Aether əmri %1$s üçün nüvənin qəbul etmədiyi ünvan yazır; ondan sonra IP ünvanı və port yazın, məsələn, 127.0.0.1:20808</string>
+    <string name="aether_listen_address_unreachable">Aether əmri %1$s üçün tətbiqin qoşulmadığı ünvan yazır: tətbiq nüvəyə 127.0.0.1 üzərindən qoşulur, ona görə də ondan sonra 127.0.0.1 (və ya bütün ünvanlar üçün 0.0.0.0) və port yazın</string>
+    <string name="aether_listen_port_shared">Aether əmri nüvəyə iki dinləyicisi ilə %1$d portunda dinləməyi bildirir (əmrin göstərmədiyi dinləyici yenə də dinləyir: tətbiqin qoşulduğu dinləyici Aether dinləmə portunda, digərləri nüvənin standart portunda: 1819, 1820 və ya 1821); hər dinləyiciyə ayrıca port verin</string>
     <string name="aether_lab_psiphon">Psiphon</string>
     <string name="aether_lab_psiphon_mode">Psiphon bağlantısı</string>
     <string name="aether_lab_psiphon_cdn_ips">CDN fronting IP-ləri</string>
@@ -659,6 +664,7 @@
     <string name="aether_unsupported_abi">Aether nüvəsi bu cihaz üçün mövcud deyil</string>
     <string name="aether_core_stopped">Aether nüvəsi dayandı</string>
     <string name="aether_core_stopped_no_ech_key">Aether nüvəsi dayandı: ECH aktivdir, lakin istifadə edilə bilən ECH açarı tapılmadı. Açar olmadan server adı açıq şəkildə göndəriləcəkdi.</string>
+    <string name="aether_core_stopped_chain_ended">Aether tunelinin içindəki Tor və ya Psiphon dayandı, ona görə bağlantı dayandırıldı: %1$s</string>
     <string name="aether_core_connecting">Aether nüvəsi hələ qoşulur</string>
     <string name="menu_item_import_config_manually_aether">Aether konfiqurasiyasını əllə əlavə et</string>
     <string name="aether_action_renew_key">Yeni WARP açarları al…</string>
@@ -695,6 +701,13 @@
     <string name="aether_keys_hint_ech">WARP API sorğularının server adını gizlədir; istifadə edilə bilən ECH açarı olmadan heç bir WARP açarı sorğulanmır</string>
     <string name="aether_lab_fingerprint">Barmaq izi</string>
     <string name="aether_keys_invalid_enroll_address">API ünvanı portlu və ya portsuz IP ünvanı və ya domen adı olmalıdır, məsələn 188.114.97.6:443 və ya [2606:4700::1]:8443</string>
+    <string name="aether_keys_lab_api_sni">API server adı (SNI)</string>
+    <string name="aether_keys_lab_api_host">API hostu</string>
+    <string name="aether_keys_hint_enroll_address">API server adının ünvanı üçün boş buraxın</string>
+    <string name="aether_keys_hint_api_sni">API hostu üçün boş buraxın</string>
+    <string name="aether_keys_hint_api_host">api.devices.cloudflare.com üçün boş buraxın; o cavab verməsə və server adı da boşdursa, api.cloudflareclient.com işlədilir. Cloudflare hostdan fərqli server adını qəbul etmir</string>
+    <string name="aether_keys_invalid_api_sni">API server adı domen adı olmalıdır, məsələn api.devices.cloudflare.com</string>
+    <string name="aether_keys_invalid_api_host">API hostu domen adı olmalıdır, məsələn api.devices.cloudflare.com</string>
     <string name="aether_keys_invalid_command">Əmr açarları qeydiyyatdan keçirməlidir: --register, ardınca all, wg, masque, mim, gool-classic (WARP-in-WARP) və ya gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">Nüvənin çıxış məlumatları və WARP açarları burada görünür</string>
     <string name="aether_scan_blocked">Skan etməzdən əvvəl Aether profilini ayırın; skan işləyən bağlantının açarı ilə ikinci tunel açardı</string>
@@ -772,5 +785,8 @@
         <item>GFW</item>
         <item>Aqressiv</item>
     </string-array>
+    <string name="sub_info_open_support">Dəstək linkini aç</string>
+    <string name="sub_info_open_page">Abunəlik məlumat səhifəsini aç</string>
+    <string name="sub_info_unlimited">Limitsiz</string>
 
 </resources>

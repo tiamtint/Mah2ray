@@ -57,6 +57,8 @@ class AetherKeysRepository(private val context: Context) : AetherKeysSource {
         AetherKeysSettings(
             kind = AetherKeyKind.fromString(MmkvManager.decodeSettingsString(AppConfig.PREF_AETHER_KEYS_KIND)),
             enrollAddress = text(AppConfig.PREF_AETHER_KEYS_ENROLL_ADDRESS, defaults.enrollAddress),
+            apiSni = text(AppConfig.PREF_AETHER_KEYS_API_SNI, defaults.apiSni),
+            apiHost = text(AppConfig.PREF_AETHER_KEYS_API_HOST, defaults.apiHost),
             fragment = MmkvManager.decodeSettingsBool(AppConfig.PREF_AETHER_KEYS_FRAGMENT, defaults.fragment),
             fragmentSize = text(AppConfig.PREF_AETHER_KEYS_FRAGMENT_SIZE, defaults.fragmentSize),
             fragmentDelay = text(AppConfig.PREF_AETHER_KEYS_FRAGMENT_DELAY, defaults.fragmentDelay),
@@ -83,6 +85,8 @@ class AetherKeysRepository(private val context: Context) : AetherKeysSource {
         listOf(
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_KIND, settings.kind.type),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_ENROLL_ADDRESS, settings.enrollAddress),
+            MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_API_SNI, settings.apiSni),
+            MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_API_HOST, settings.apiHost),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FRAGMENT, settings.fragment),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FRAGMENT_SIZE, settings.fragmentSize),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FRAGMENT_DELAY, settings.fragmentDelay),

@@ -16,5 +16,6 @@ data class SubscriptionItem(
     var requestHeaders: String? = null,
     var overrideAddress: String? = null,
     var overridePort: Int? = null,
+    var usageInfo: SubscriptionUsageInfo? = null,
 )
 

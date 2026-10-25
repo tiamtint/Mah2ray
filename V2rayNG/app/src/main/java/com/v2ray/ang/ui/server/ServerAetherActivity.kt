@@ -678,27 +678,12 @@ class ServerAetherActivity : BaseServerActivity() {
     override fun validateProtocolConfig(config: ProfileItem): Boolean {
         // The core cannot listen where the local proxy of the app does, nor where the inbound it dials out
         // through does; Xray would get the port first. PattNG: the ports are the view model's, read off the main thread.
-        val problem = AetherFmt.normalize(config, viewModel.takenPorts.value, viewModel.listenPort.value) ?: return true
-        toast(
-            when (problem) {
-                AetherFmt.Problem.INVALID_MASQUE_SNI -> R.string.aether_invalid_masque_sni
-                AetherFmt.Problem.INVALID_PEER -> R.string.aether_invalid_endpoint
-                AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
-                AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
-                AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
-                AetherFmt.Problem.INVALID_DNS -> R.string.aether_invalid_dns
-                AetherFmt.Problem.INVALID_EXIT_LOC -> R.string.aether_invalid_exit_loc
-                AetherFmt.Problem.INVALID_ECH_DNS -> R.string.aether_invalid_ech_dns
-                AetherFmt.Problem.INVALID_ECH_DOMAIN -> R.string.aether_invalid_ech_domain
-                AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
-                AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque
-                AetherFmt.Problem.NEXT_PORT_TAKEN -> R.string.aether_next_port_taken
-                AetherFmt.Problem.TOR_NEEDS_MASQUE -> R.string.aether_tor_needs_masque
-                AetherFmt.Problem.TOR_PSIPHON_CONFLICT -> R.string.aether_tor_psiphon_conflict
-                AetherFmt.Problem.TOR_BRIDGES_MISSING -> R.string.aether_tor_bridges_missing
-                AetherFmt.Problem.INVALID_COMMAND -> R.string.aether_invalid_command
-            }
-        )
+        val takenPorts = viewModel.takenPorts.value
+        val listenPort = viewModel.listenPort.value
+        val problem = AetherFmt.normalize(config, takenPorts, listenPort) ?: return true
+        // PattNG: those about the listeners of a command name the port or the option, see messageOfAetherProblem.
+        val message = messageOfAetherProblem(problem, config, takenPorts, listenPort)
+        toast(message.argument?.let { getString(message.id, it) } ?: getString(message.id))
         return false
     }
 
