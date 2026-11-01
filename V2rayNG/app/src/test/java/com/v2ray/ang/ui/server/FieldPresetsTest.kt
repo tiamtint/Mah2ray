@@ -11,9 +11,9 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
- * The ready-made values the finalMask and cipherSuites fields offer: which one a field holds, whether a pick asks before
- * it takes the field's place, and the lists themselves as the app's resources give them, read from the module's folder
- * the unit tests run in.
+ * The ready-made values the finalMask, cipherSuites and dialMode fields offer: which one a field holds, whether a pick
+ * asks before it takes the field's place, and the lists themselves as the app's resources give them, read from the
+ * module's folder the unit tests run in.
  */
 class FieldPresetsTest {
 
@@ -64,6 +64,20 @@ class FieldPresetsTest {
         assertEquals(-1, suites.indexOf("${ecdsa}X:$rsa"))
         assertEquals(-1, suites.indexOf(""))
         assertEquals(-1, suites.indexOf(" : \n"))
+    }
+
+    @Test
+    fun aDialModeFieldHoldsOneOfTheListOnlyWithExactlyItsText() {
+        val modes = FieldPresets(listOf("oob.0", "oob.1,2"), Match.EXACT)
+        assertEquals(0, modes.indexOf("oob.0"))
+        assertEquals(1, modes.indexOf("oob.1,2"))
+        // Xray reads a dialMode as it is written, neither trimmed nor folded: anything else is one of the user's own.
+        assertEquals(FieldPresets.NONE, modes.indexOf(" oob.0"))
+        assertEquals(FieldPresets.NONE, modes.indexOf("oob.0\n"))
+        assertEquals(FieldPresets.NONE, modes.indexOf("OOB.0"))
+        assertEquals(FieldPresets.NONE, modes.indexOf("oob.1, 2"))
+        assertEquals(FieldPresets.DEFAULT, modes.heldOf(" "))
+        assertEquals(FieldPresets.NONE, modes.heldOf("oob.0 "))
     }
 
     @Test
@@ -125,8 +139,8 @@ class FieldPresetsTest {
     fun theFinalMaskFieldsOfferTheGivenFinalMasksEachLaidOutAsWrittenUnderItsName() {
         val names = AppResources.stringArray("final_mask_preset_names")
         val values = AppResources.stringArray("final_mask_preset_values").map(::readAsAapt)
-        assertEquals(listOf("tlshello-0-len (0-104-1-0-0-114-1-1-11)", "tlshello (6-98-1-0-0-114-1-1-11)", "udp-noise (rnd-24-1200-1230)"), names)
-        assertEquals(listOf(TLSHELLO_0_LEN, TLSHELLO, UDP_NOISE), values)
+        assertEquals(listOf("tlshello-0-len (0-104-1-0-0-114-1-1-11)", "tlshello (6-98-1-0-0-114-1-1-11)", "udp-noise (rnd-24-1200-1230)", "merge"), names)
+        assertEquals(listOf(TLSHELLO_0_LEN, TLSHELLO, UDP_NOISE, MERGE), values)
         // Each is one an exit-node takes, as an outbound does, and the list tells each apart from the others.
         val listed = FieldPresets(values, Match.JSON)
         values.forEachIndexed { index, value ->
@@ -142,6 +156,16 @@ class FieldPresetsTest {
         assertEquals(listOf("semi-python-cipherSuites", "real-firefox-cipherSuites"), names)
         assertEquals(listOf(SEMI_PYTHON, REAL_FIREFOX), values)
         val listed = FieldPresets(values, Match.NAMES)
+        values.forEachIndexed { index, value -> assertEquals(index, listed.indexOf(value)) }
+    }
+
+    @Test
+    fun theDialModeFieldsOfferTheGivenDialModesUnderTheirNames() {
+        val names = AppResources.stringArray("dial_mode_preset_names")
+        val values = AppResources.stringArray("dial_mode_preset_values").map(::readPlain)
+        assertEquals(listOf("oob"), names)
+        assertEquals(listOf("oob.0"), values)
+        val listed = FieldPresets(values, Match.EXACT)
         values.forEachIndexed { index, value -> assertEquals(index, listed.indexOf(value)) }
     }
 
@@ -221,6 +245,14 @@ class FieldPresetsTest {
                     ]
                   }
                 }
+              ]
+            }
+        """.trimIndent()
+
+        val MERGE = """
+            {
+              "tcp": [
+                {"type": "merge", "settings": {"times": 100, "delayMs": 30, "maxBytes": 16384}}
               ]
             }
         """.trimIndent()

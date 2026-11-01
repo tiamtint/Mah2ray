@@ -1,6 +1,7 @@
 package com.v2ray.ang.root
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
@@ -8,6 +9,38 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 class RootProxyManagerTest {
+
+    @Test
+    fun `IPv6 LAN forwarding disables jumbo and TSO`() {
+        val config = RootProxyManager.buildHevConfig(null, null, 10808, true, 1500, true)
+
+        assertTrue(config.contains("  offload:\n    jumbo: false\n"))
+        assertTrue(config.contains("  multi-queue: true\n"))
+        assertTrue(config.contains("    tso: false\n"))
+        assertFalse(config.contains("uso:"))
+    }
+
+    @Test
+    fun `local root keeps default offloads and configured MTU`() {
+        val config = RootProxyManager.buildHevConfig(null, null, 10808, true, 8500, false)
+
+        assertFalse(config.contains("offload:"))
+        assertTrue(config.contains("  mtu: 8500\n"))
+        // PattNG: the IPv6 tun address is left to the setup script, never put in the hev config.
+        assertFalse(config.contains("  ipv6:"))
+    }
+
+    @Test
+    fun `LAN offload guard preserves IPv4 only and quoted authentication`() {
+        val config = RootProxyManager.buildHevConfig("user'name", "pa'ss", 10809, false, 1500, true)
+
+        assertTrue(config.contains("  offload:\n    jumbo: false\n"))
+        assertFalse(config.contains("tso:"))
+        assertFalse(config.contains("  ipv6:"))
+        assertTrue(config.contains("  port: 10809\n"))
+        assertTrue(config.contains("  username: 'user''name'\n"))
+        assertTrue(config.contains("  password: 'pa''ss'\n"))
+    }
 
     @Test
     fun `the device IPv6 is blocked rather than leaked when the tun takes no IPv6`() {
