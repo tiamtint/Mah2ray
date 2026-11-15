@@ -158,7 +158,20 @@ object AppConfig {
     const val APP_WIKI_MODE = "$APP_URL/wiki/Mode"
     const val APP_PRIVACY_POLICY = "$GITHUB_RAW_URL/2dust/v2rayNG/master/CR.md"
     const val APP_PROMOTION_URL = "aHR0cHM6Ly85LjIzNDQ1Ni54eXovYWJjLmh0bWw="
-    const val TG_CHANNEL_URL = "https://t.me/github_2dust"
+    const val TG_CHANNEL_URL = "https://t.me/patt_channel_x"
+
+    /** PattNG: the wallets the Donate dialog lists, network and address; an address is copied exactly as written here. */
+    val DONATION_WALLETS = listOf(
+        "USDT (BEP20)" to "0x76a768B53Ca77B43086946315f0BDF21156bF424",
+        "USDT (TRC20)" to "TU5gKvKqcXPn8itp1DouBCwcqGHMemBm8o",
+        "TON (TON)" to "UQAc-mZB3y7uxWHKiMmq0ORZEYgycWDWZ4V1k73HsXvTJx-i",
+        "BTC (BTC)" to "bc1q8cptsn497hlfay6ypaaladldlrjalvx2ah233g"
+    )
+
+    /** PattNG: the author's ID the Donate dialog shows below the wallets, a link to the author's Telegram. */
+    const val AUTHOR_ID = "@patterniha"
+    const val AUTHOR_TELEGRAM_URL = "https://t.me/patterniha"
+
     const val DELAY_TEST_URL = "https://www.gstatic.com/generate_204"
     const val DELAY_TEST_URL2 = "https://www.google.com/generate_204"
     const val OBSERVATORY_LEAST_PING_INTERVAL = "3m"
@@ -211,6 +224,10 @@ object AppConfig {
     const val WIREGUARD_LOCAL_ADDRESS_V6 = "2606:4700:110:8f81:d551:a0:532e:a2b3/128"
     const val WIREGUARD_LOCAL_MTU = "1420"
     const val WIREGUARD_LOCAL_REMOTE_DNS = "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
+    const val MASQUE_LOCAL_ADDRESS_V4 = "172.16.0.2/32"
+    const val MASQUE_LOCAL_ADDRESS_V6 = "2606:4700:110:8a36::2/128"
+    const val MASQUE_LOCAL_REMOTE_DNS = "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
+
     const val LOOPBACK = "127.0.0.1"
 
     /** Shared defaults for settings shown in the UI and consumed by config generation. */
@@ -277,6 +294,7 @@ object AppConfig {
     const val TUIC = "tuic://"
     const val HYSTERIA = "hysteria://"
     const val HYSTERIA2 = "hysteria2://"
+    const val MASQUE = "masque://"
     const val HY2 = "hy2://"
     const val V2RAYNFMTS = "v2rayn://"
     const val AETHER = "aether://"

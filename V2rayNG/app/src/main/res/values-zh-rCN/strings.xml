@@ -45,6 +45,7 @@
     <string name="menu_item_import_config_manually_trojan">添加 [Trojan]</string>
     <string name="menu_item_import_config_manually_wireguard">添加 [WireGuard]</string>
     <string name="menu_item_import_config_manually_hysteria2">添加 [Hysteria2]</string>
+    <string name="menu_item_import_config_manually_masque">添加 [MASQUE]</string>
     <string name="confirm_delete_visible_profiles">确定要删除当前显示的所有配置吗？</string>
     <string name="confirm_delete_duplicate_profiles">确定要删除当前显示的所有重复配置吗？</string>
     <string name="confirm_delete_invalid_profiles">请先测试配置。确定要删除当前显示的所有无效配置吗？</string>
@@ -73,6 +74,7 @@
     <string name="server_lab_request_host_h2">h2 host</string>
     <string name="server_lab_request_host_quic">QUIC 加密方式</string>
     <string name="server_lab_request_host_grpc">gRPC Authority</string>
+    <string name="server_lab_request_host_masque">MASQUE host</string>
     <string name="server_lab_path">path</string>
     <string name="server_lab_path_ws">ws path</string>
     <string name="server_lab_path_httpupgrade">httpupgrade path</string>
@@ -81,11 +83,15 @@
     <string name="server_lab_path_quic">QUIC 加密密钥</string>
     <string name="server_lab_path_kcp">kcp seed</string>
     <string name="server_lab_path_grpc">gRPC serviceName</string>
+    <string name="server_lab_path_masque">MASQUE path</string>
     <string name="server_lab_stream_security" translatable="false">TLS</string>
     <string name="server_lab_stream_fingerprint">Fingerprint</string>
     <string name="server_lab_stream_alpn" translatable="false">ALPN</string>
     <string name="server_lab_cipher_suites">加密套件 (Cipher Suites)</string>
+    <string name="server_lab_curve_preferences">曲线偏好 (Curve Preferences)</string>
+    <string name="server_lab_enable_session_resumption">会话恢复 (Enable Session Resumption)</string>
     <string name="toast_cipher_suites_need_unsafe">cipherSuites 仅在指纹为 unsafe 时生效。请选择 unsafe，或清空 cipherSuites。</string>
+    <string name="toast_curve_preferences_need_unsafe">curvePreferences 仅在指纹为 unsafe 时生效。请选择 unsafe，或清空 curvePreferences。</string>
     <string name="toast_websocket_alpn_http1_only">WebSocket 和 HTTPUpgrade 仅在 alpn 为 http/1.1 或为空时才能连接。请选择 http/1.1，或留空 alpn。</string>
     <string name="server_lab_allow_insecure">跳过证书验证 (allowInsecure)</string>
     <string name="server_lab_sni" translatable="false">SNI</string>
@@ -105,6 +111,10 @@
     <string name="server_lab_secret_key">SecretKey</string>
     <string name="server_lab_reserved">Reserved (可选，逗号隔开)</string>
     <string name="server_lab_local_address">本地地址 (可选 IPv4/IPv6，逗号隔开)</string>
+    <string name="server_lab_local_address_hint">留空时默认使用 %1$s。仅在启用 IPv6 时才使用 IPv6 地址。</string>
+    <string name="server_lab_masque_warp_settings">WARP</string>
+    <string name="server_lab_masque_warp_private_key">WARP PrivateKey</string>
+    <string name="server_lab_masque_warp_public_key">WARP PublicKey</string>
     <string name="server_lab_local_mtu">MTU（可选，默认 1420）</string>
     <string name="server_lab_remote_dns">remoteDNS(可选,多个 IPv4/IPv6 地址用逗号分隔)</string>
     <string name="server_lab_remote_dns_hint">留空时默认使用 %1$s。仅在启用 IPv6 时才使用 IPv6 地址。</string>
@@ -128,6 +138,9 @@
     <string name="server_lab_request_host6">Host (SNI) (可选)</string>
     <string name="toast_action_not_allowed">禁止此项操作</string>
     <string name="server_obfs_password">混淆密码</string>
+    <string name="server_obfs_type">混淆类型</string>
+    <string name="server_lab_min_packet_size">最小数据包大小（可选，默认 512）</string>
+    <string name="server_lab_max_packet_size">最大数据包大小（可选，默认 1200）</string>
     <string name="server_lab_port_hop">跳跃端口 (会覆盖服务器端口)</string>
     <string name="server_lab_port_hop_interval">端口跳跃间隔 (秒)</string>
     <string name="server_lab_bandwidth_down">带宽下行 (支持的单位 k/m/g/t)</string>
@@ -141,6 +154,9 @@
     <string name="preset_default">默认</string>
     <string name="acc_choose_preset">选择现成的 %1$s</string>
     <string name="server_lab_dial_mode" translatable="false">dialMode</string>
+    <string name="server_lab_tcp_user_timeout" translatable="false">tcpUserTimeout</string>
+    <string name="server_hint_tcp_user_timeout">毫秒（例如 10000）。留空则使用系统默认值</string>
+    <string name="aether_lab_exit_tcp_user_timeout" translatable="false">exit-node tcpUserTimeout</string>
     <string name="server_lab_ech_config_list" translatable="false">echConfigList</string>
     <string name="server_lab_ech_outbound">echOutbound 原始 JSON 格式: { OutboundObject }</string>
     <string name="toast_ech_outbound_needs_ech_config_list">echOutbound 需要填写 echConfigList</string>
@@ -307,6 +323,7 @@
     <string name="title_oss_license">开源许可证</string>
     <string name="title_translators">翻译贡献者</string>
     <string name="title_tg_channel">Telegram 频道</string>
+    <string name="title_donate">捐赠</string>
 
     <string name="title_pref_promotion">推广</string>
 
@@ -538,6 +555,7 @@
     <string name="acc_download_file">下载资源文件</string>
     <string name="acc_qr_code">二维码</string>
     <string name="acc_copy_log">复制日志</string>
+    <string name="acc_copy_address">复制 %1$s 地址</string>
     <string name="acc_clear_log">清除日志</string>
     <string name="acc_add_rule">添加路由规则</string>
     <string name="acc_start">启动服务</string>
@@ -581,7 +599,7 @@
     <string name="aether_lab_exit_final_mask">exit-node 的 finalMask 原始 JSON 格式: { FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom（默认）</string>
     <string name="label_numbered">%1$s（%2$d）</string>
-    <string name="aether_hint_exit_node">内核经由此配置的出站向外连接，如同经由代理链的一跳；下方的 finalMask 和 dialMode 只用于 freedom</string>
+    <string name="aether_hint_exit_node">内核经由此配置的出站向外连接，如同经由代理链的一跳；下方的 finalMask、dialMode 和 tcpUserTimeout 只用于 freedom</string>
     <string name="aether_exit_node_unusable">exit-node 配置“%1$s”无法生成出站；请另选一个，或选择 freedom</string>
     <string name="aether_exit_node_ech_unusable">exit-node 配置“%1$s”的 echOutbound 无法使用；请在该配置中修正，或另选一个，或选择 freedom</string>
     <string name="toast_profile_name_not_found">找不到名为“%1$s”的配置</string>

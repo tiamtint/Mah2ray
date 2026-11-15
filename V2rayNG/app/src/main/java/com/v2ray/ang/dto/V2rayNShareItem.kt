@@ -27,7 +27,12 @@ data class V2rayNShareItem(
     val Alpn: String?,
     val Fingerprint: String?,
     val CipherSuites: String?,
+    // PattNG: PattN's curvePreferences and enableSessionResumption, after cipherSuites
+    val CurvePreferences: String?,
+    val EnableSessionResumption: Boolean?,
     val DialMode: String?,
+    // PattNG: PattN's tcpUserTimeout, after dialMode
+    val TcpUserTimeout: Int?,
     val PublicKey: String?,
     val ShortId: String?,
     val SpiderX: String?,
@@ -135,7 +140,10 @@ data class V2rayNShareItem(
             alpn = Alpn,
             fingerPrint = Fingerprint,
             cipherSuites = CipherSuites,
+            curvePreferences = CurvePreferences,
+            enableSessionResumption = EnableSessionResumption,
             dialMode = DialMode,
+            tcpUserTimeout = TcpUserTimeout?.takeIf { it > 0 },
             insecure = AllowInsecure?.toBoolean(),
             echConfigList = EchConfigList,
             echOutbound = EchOutbound,
@@ -165,8 +173,8 @@ data class V2rayNShareItem(
             // policyGroupSubscriptionId = ProtoExtraObj?.SubChildItems,
             policyGroupSubscriptionId = if (ProtoExtraObj?.SubChildItems == "self") "self" else null,
             policyGroupFilter = ProtoExtraObj?.Filter,
-            // NOTE: proxyChainProfiles stores remarks, not IndexId
-            // proxyChainProfiles = ProtoExtraObj?.ChildItems,
+            // NOTE: proxyChainProfileList stores remarks, not IndexId
+            // proxyChainProfileList = ProtoExtraObj?.ChildItems,
         )
         // profile.description =
         return profile

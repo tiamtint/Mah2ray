@@ -2,7 +2,6 @@ package com.v2ray.ang.ui.server
 
 import android.app.Application
 import com.v2ray.ang.R
-import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
 import kotlinx.coroutines.flow.StateFlow
@@ -27,9 +26,11 @@ class ServerProxyChainViewModel(
         val config = guid.takeIf { it.isNotEmpty() }?.let { source.loadProfile(it) }
         ProxyChainOpening(
             remarks = config?.remarks ?: "",
-            members = config?.proxyChainProfiles?.let { text -> ProfileItem.proxyChainMembersOf(text).map { it.trim() }.filter { it.isNotEmpty() } }
+            members = config?.proxyChainMembers()?.takeIf { it.isNotEmpty() }?.map { it.trim() }?.filter { it.isNotEmpty() }
                 ?: listOf("", ""),
-            profileNames = source.profileNames(setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)),
+            profileNames = source.profileNames(
+                setOf(EConfigType.CUSTOM, EConfigType.CUSTOM_OUTBOUND, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)
+            ),
         )
     }
 
@@ -37,8 +38,8 @@ class ServerProxyChainViewModel(
      * Saves the chain as [remarks] with [members], the names of its profiles in its order. Every member has to be
      * chosen, and there have to be two. They are found by their names as the chain finds its hops when it runs: a name
      * no profile has, as after a rename or a delete, several have, one whose profile has no server address, or only a
-     * group, a chain or a custom configuration has, is told rather than saved, and so is a second Aether member, see
-     * [proxyChainProblem].
+     * group, a chain, a custom configuration or a custom outbound has, is told rather than saved, and so is a second
+     * Aether member, see [proxyChainProblem].
      */
     fun save(remarks: String, members: List<String>) = launchSave {
         if (remarks.isBlank()) return@launchSave null
@@ -55,7 +56,7 @@ class ServerProxyChainViewModel(
 
         store(EConfigType.PROXYCHAIN) { config ->
             config.remarks = remarks.trim()
-            config.proxyChainProfiles = ProfileItem.proxyChainProfilesOf(chainMembers)
+            config.proxyChainProfileList = chainMembers
             config.description = chainMembers.joinToString(" -> ")
         }
     }

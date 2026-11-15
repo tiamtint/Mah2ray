@@ -197,7 +197,8 @@ class MainViewModel(
 
             MainServiceEvent.StateStopSuccess -> updateRunningState(false)
             is MainServiceEvent.MeasureDelayResult -> {
-                if (!uiState.value.isRunning || !testRequests.completeCurrent(event.requestId)) return
+                // PattNG: the delay, then the IP lookup, of this request only; a late reply to an older one changes nothing.
+                if (!uiState.value.isRunning || !testRequests.answerCurrent(event.requestId)) return
                 _uiState.update { it.copy(isTesting = testRequests.isTesting, status = MainStatus.ConnectionTest(event.result)) }
             }
 
@@ -224,6 +225,7 @@ class MainViewModel(
             }
 
             is MainServiceEvent.MeasureDelayCancelled -> {
+                // PattNG: a test cancelled before its delay came in ends; a cancelled IP lookup leaves the delay shown.
                 if (testRequests.completeCurrent(event.requestId)) resetTestStatus()
             }
 
@@ -372,7 +374,9 @@ class MainViewModel(
             is MainAction.EditServer,
             is MainAction.ShareClipboard,
             is MainAction.ShareFullContent,
-            is MainAction.OpenSubscriptionLink -> {
+            is MainAction.OpenSubscriptionLink,
+            is MainAction.CopyDonationAddress,
+            MainAction.OpenAuthorTelegram -> {
                 // Handled by Activity via its onAction lambda
             }
         }

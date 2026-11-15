@@ -187,8 +187,13 @@ object RootProxyManager {
                 // v6 disabled, or the tun refusing it: blackhole native v6 egress for the captured apps so
                 // they fall back to v4-through-proxy, matching what a v4-only VpnService does.
                 val blackhole = buildV6Blackhole(appUid, perAppEnabled, bypassApps, selectedUids)
-                // route the device's v6 into the tun, same as v4
-                val marking = if (ipv6) buildMangleMarking("ip6tables", appUid, perAppEnabled, bypassApps, selectedUids) else null
+                // route the device's v6 into the tun, same as v4, with its DNS DNAT (skipped without an IPv6 remote
+                // DNS or the ip6tables nat table); deviceIpv6Setup runs both only once the v6 route is in place
+                val marking = if (ipv6) {
+                    buildMangleMarking("ip6tables", appUid, perAppEnabled, bypassApps, selectedUids) + buildDnsDnat("ip6tables")
+                } else {
+                    null
+                }
                 // Must stay last: its exit status is the script's.
                 append(deviceIpv6Part(marking, blackhole))
             }
@@ -332,19 +337,27 @@ object RootProxyManager {
      */
     private fun buildDnsDnat(cmd: String): String {
         val dnsChain = AppConfig.ROOT_DNS_OUT_CHAIN
+        val v6 = cmd == "ip6tables"
+        // DNAT needs a target of the same family. There is no v6 fallback, so without a v6
+        // remote DNS the v6 chain is skipped.
         val dns = SettingsManager.getRemoteDnsServers()
-            .firstOrNull { Utils.isPureIpAddress(it) && !it.contains(":") }
-            ?: AppConfig.ROOT_LAN_DNS
-        val lanCidrs = if (cmd == "ip6tables") bypassCidrsV6 else bypassCidrs
+            .firstOrNull { Utils.isPureIpAddress(it) && it.contains(":") == v6 }
+            ?: if (v6) return "" else AppConfig.ROOT_LAN_DNS
+        val lanCidrs = if (v6) bypassCidrsV6 else bypassCidrs
         return buildString {
+            // Most stock kernels have no ip6tables nat table: skip cleanly instead of failing.
+            if (v6) appendLine("if $cmd -t nat -S OUTPUT >/dev/null 2>&1; then")
             appendLine("$cmd -t nat -N $dnsChain 2>/dev/null || true")
             appendLine("$cmd -t nat -F $dnsChain")
+            // Only rewrite queries already marked into the tun. Unmarked ones (the core's own
+            // direct/domestic DNS, bypassed apps) must still reach the resolver they asked for.
             lanCidrs.forEach {
-                appendLine("$cmd -t nat -A $dnsChain -d $it -p udp --dport 53 -j DNAT --to $dns")
-                appendLine("$cmd -t nat -A $dnsChain -d $it -p tcp --dport 53 -j DNAT --to $dns")
+                appendLine("$cmd -t nat -A $dnsChain -m mark --mark $MARK -d $it -p udp --dport 53 -j DNAT --to-destination $dns")
+                appendLine("$cmd -t nat -A $dnsChain -m mark --mark $MARK -d $it -p tcp --dport 53 -j DNAT --to-destination $dns")
             }
             appendLine("$cmd -t nat -D OUTPUT -j $dnsChain 2>/dev/null || true")
             appendLine("$cmd -t nat -A OUTPUT -j $dnsChain")
+            if (v6) appendLine("fi")
         }
     }
 
@@ -413,8 +426,8 @@ object RootProxyManager {
      * that keeps IPv6 off on new interfaces, marked v6 would leave natively or die in the tun
      * (kernels before 4.17 take the route even then; the address they all refuse), so [blackhole]
      * rejects it instead, and the setup fails only if hooking the blackhole into OUTPUT fails, as
-     * with IPv6 off. There is no v6 DNS DNAT: it needs the ip6tables nat table, which some kernels
-     * lack, and an IPv6 resolver to rewrite to.
+     * with IPv6 off. [marking] carries the v6 DNS DNAT too ([buildDnsDnat]), which skips itself
+     * without an IPv6 remote DNS or the ip6tables nat table.
      */
     internal fun deviceIpv6Setup(marking: String, blackhole: String): String = buildString {
         val addressRouteAndRule = listOf(
@@ -564,8 +577,7 @@ object RootProxyManager {
             appendLine("iptables -t nat -D OUTPUT -j ${AppConfig.ROOT_DNS_OUT_CHAIN} 2>/dev/null || true")
             appendLine("iptables -t nat -F ${AppConfig.ROOT_DNS_OUT_CHAIN} 2>/dev/null || true")
             appendLine("iptables -t nat -X ${AppConfig.ROOT_DNS_OUT_CHAIN} 2>/dev/null || true")
-            // its IPv6 copy, which only older versions set up; only where the nat table is listed,
-            // as touching it otherwise could create it
+            // its IPv6 copy, only where the nat table is listed, as touching it otherwise could create it
             appendLine("if grep -qx nat /proc/net/ip6_tables_names 2>/dev/null; then")
             appendLine("ip6tables -t nat -D OUTPUT -j ${AppConfig.ROOT_DNS_OUT_CHAIN} 2>/dev/null || true")
             appendLine("ip6tables -t nat -F ${AppConfig.ROOT_DNS_OUT_CHAIN} 2>/dev/null || true")

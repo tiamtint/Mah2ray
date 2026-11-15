@@ -1,6 +1,7 @@
 package com.v2ray.ang.fmt
 
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.core.TcpUserTimeoutRule
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.extension.nullIfBlank
@@ -41,8 +42,11 @@ open class FmtBase {
      * @return a map of query parameters
      */
     fun getQueryParam(uri: URI): Map<String, String> {
+        // Split each pair on the first '=' only: RFC 3986 allows '=' inside a query value
+        // (e.g. path=/ws?ed=2048 or base64 padding). Pairs without '=' carry no value; skip them.
         return uri.rawQuery.split("&")
-            .associate { it.split("=").let { (k, v) -> k to Utils.decodeURIComponent(v) } }
+            .filter { it.contains("=") }
+            .associate { it.split("=", limit = 2).let { (k, v) -> k to Utils.decodeURIComponent(v) } }
     }
 
     /**
@@ -69,6 +73,7 @@ open class FmtBase {
         config.xhttpExtra = queryParam["extra"]
         config.finalMask = queryParam["fm"]
         config.dialMode = queryParam["dialMode"]
+        config.tcpUserTimeout = TcpUserTimeoutRule.parse(queryParam["tut"])
 
         config.security = queryParam["security"]
         if (config.security != AppConfig.TLS && config.security != AppConfig.REALITY) {
@@ -85,6 +90,8 @@ open class FmtBase {
         config.fingerPrint = queryParam["fp"]
         config.alpn = queryParam["alpn"]
         config.cipherSuites = queryParam["cs"]
+        config.curvePreferences = queryParam["cp"]
+        config.enableSessionResumption = queryParam["esr"] == "1"
         config.echConfigList = queryParam["ech"]
         config.echOutbound = queryParam["echOutbound"]
         config.verifyPeerCertByName = queryParam["vcn"]
@@ -108,6 +115,9 @@ open class FmtBase {
         config.sni?.nullIfBlank()?.let { dicQuery["sni"] = it }
         config.alpn?.nullIfBlank()?.let { dicQuery["alpn"] = it }
         config.cipherSuites?.nullIfBlank()?.let { dicQuery["cs"] = it }
+        // PattNG: curvePreferences (cp), as the profile holds them, and enableSessionResumption (esr) when on
+        config.curvePreferences?.nullIfBlank()?.let { dicQuery["cp"] = it }
+        if (config.enableSessionResumption == true) dicQuery["esr"] = "1"
         config.echConfigList?.nullIfBlank()?.let { dicQuery["ech"] = it }
         config.echOutbound?.nullIfBlank()?.let { dicQuery["echOutbound"] = it }
         config.verifyPeerCertByName?.nullIfBlank()?.let { dicQuery["vcn"] = it }
@@ -120,6 +130,8 @@ open class FmtBase {
         config.flow?.nullIfBlank()?.let { dicQuery["flow"] = it }
         config.finalMask?.nullIfBlank()?.let { dicQuery["fm"] = it }
         config.dialMode?.nullIfBlank()?.let { dicQuery["dialMode"] = it }
+        // PattNG: tcpUserTimeout (tut), only where the outbound connects over TCP
+        TcpUserTimeoutRule.valueOf(config)?.let { dicQuery["tut"] = it.toString() }
         config.kcpMtu?.let { dicQuery["mtu"] = it.toString() }
         config.kcpTti?.let { dicQuery["tti"] = it.toString() }
         // Add two keys for compatibility: "insecure" and "allowInsecure"

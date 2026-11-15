@@ -1,18 +1,26 @@
 package com.v2ray.ang.core
 
+import com.tencent.mmkv.MMKV
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.V2rayConfig.OutboundBean
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.mockito.MockMakers
+import org.mockito.Mockito
+import org.mockito.Mockito.mockStatic
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 /**
  * Unit tests for CoreOutboundBuilder.applyDialMode: dialMode must land in
@@ -154,6 +162,52 @@ class CoreOutboundBuilderTest {
             assertEquals(protocols, streamSettings.tlsSettings?.alpn, "$alpn")
             assertEquals(protocols.orEmpty(), CoreOutboundBuilder.alpnProtocols(alpn), "$alpn")
         }
+    }
+
+    @Test
+    fun test_populateTlsSettings_offersTheCurvePreferencesAsAListAndSessionResumptionOnlyWhenOn() {
+        // PattNG: curvePreferences split on ',' and trimmed as alpn's are, none written for none; enableSessionResumption
+        // left out while it is off.
+        val offered = mapOf(
+            "X25519MLKEM768,X25519" to listOf("X25519MLKEM768", "X25519"),
+            " X25519 ," to listOf("X25519"),
+            " , " to null,
+            "" to null,
+            null to null,
+        )
+        for ((curves, names) in offered) {
+            val streamSettings = OutboundBean.StreamSettingsBean()
+
+            CoreOutboundBuilder.populateTlsSettings(streamSettings, echProfile(AppConfig.TLS, " ").apply { curvePreferences = curves }, null)
+
+            assertEquals(names, streamSettings.tlsSettings?.curvePreferences, "$curves")
+            assertEquals(names, CoreOutboundBuilder.curvePreferenceNames(curves), "$curves")
+        }
+        for ((resumption, written) in listOf(true to true, false to null, null to null)) {
+            val streamSettings = OutboundBean.StreamSettingsBean()
+
+            CoreOutboundBuilder.populateTlsSettings(streamSettings, echProfile(AppConfig.TLS, " ").apply { enableSessionResumption = resumption }, null)
+
+            assertEquals(written, streamSettings.tlsSettings?.enableSessionResumption, "$resumption")
+        }
+
+        // Written, they follow cipherSuites, as in the editor and the share links.
+        val streamSettings = OutboundBean.StreamSettingsBean()
+        CoreOutboundBuilder.populateTlsSettings(
+            streamSettings,
+            echProfile(AppConfig.TLS, " ").apply {
+                fingerPrint = "unsafe"
+                cipherSuites = "TLS_AES_128_GCM_SHA256"
+                curvePreferences = "X25519MLKEM768,X25519"
+                enableSessionResumption = true
+            },
+            null,
+        )
+        val json = JsonUtil.toJson(streamSettings.tlsSettings)
+        val cipherSuites = json.indexOf("\"cipherSuites\"")
+        val curvePreferences = json.indexOf("\"curvePreferences\"")
+        val sessionResumption = json.indexOf("\"enableSessionResumption\"")
+        assertTrue(cipherSuites in 0 until curvePreferences && curvePreferences < sessionResumption, json)
     }
 
     @Test
@@ -390,5 +444,139 @@ class CoreOutboundBuilderTest {
             "[::1]", "12345::1", "::1%", "%eth0", "1:2:3:4:5:6:7:8:9", "1:2:3:4:5:6:1.2.3.4:5", "::1.2.3", "1:2:3:4:5:1.2.3.4",
             "::g", "1:2:3:4:5:6:7:8::", "１.1.1.1",
         ).forEach { assertFalse(CoreOutboundBuilder.isNetipAddress(it), it) }
+    }
+
+    /** A socks or http profile on an address, so its outbound is built without reading the settings store. */
+    private fun maskedOutbound(type: EConfigType, finalMask: String?): OutboundBean? {
+        val profile = ProfileItem.create(type).apply {
+            server = "1.2.3.4"
+            serverPort = "1080"
+            this.finalMask = finalMask
+        }
+        return if (type == EConfigType.SOCKS) CoreOutboundBuilder.toOutboundSocks(profile) else CoreOutboundBuilder.toOutboundHttp(profile)
+    }
+
+    @Test
+    fun aSocksOrHttpOutboundCarriesTheFinalMaskOfItsProfile() {
+        val mask = """{"tcp": [{"type": "fragment", "settings": {"packets": "tlshello", "length": "100-200"}}]}"""
+        for (type in listOf(EConfigType.SOCKS, EConfigType.HTTP)) {
+            val outbound = maskedOutbound(type, mask)
+            assertEquals(JsonUtil.parseString(mask), outbound?.streamSettings?.finalmask, type.name)
+            // The mask goes on the stream settings the outbound is created with; no transport comes in.
+            assertEquals(AppConfig.DEFAULT_NETWORK, outbound?.streamSettings?.network, type.name)
+            // No mask, or a blank one, sets none: a blank one is no JSON, so it is not handed on to be warned of.
+            for (none in listOf(null, "", "  ")) {
+                assertNull(maskedOutbound(type, none)?.streamSettings?.finalmask, "$type $none")
+            }
+        }
+    }
+
+    // PattNG: tcpUserTimeout, in sockopt beside the dialMode, where the outbound connects over TCP (TcpUserTimeoutRule).
+    @Test
+    fun test_applyTcpUserTimeout_setsItBesideTheDialModeAndKeepsTheOtherSockoptOptions() {
+        val outbound = OutboundBean(
+            protocol = "vless",
+            streamSettings = OutboundBean.StreamSettingsBean(
+                sockopt = OutboundBean.StreamSettingsBean.SockoptBean(dialerProxy = "hop-1", domainStrategy = "UseIP")
+            )
+        )
+
+        CoreOutboundBuilder.applyDialMode(outbound, createProfile("code-1"))
+        CoreOutboundBuilder.applyTcpUserTimeout(outbound, 10000)
+
+        val sockopt = outbound.streamSettings?.sockopt
+        assertEquals(10000, sockopt?.tcpUserTimeout)
+        assertEquals("code-1", sockopt?.dialMode)
+        assertEquals("hop-1", sockopt?.dialerProxy)
+        assertEquals("UseIP", sockopt?.domainStrategy)
+    }
+
+    @Test
+    fun test_applyTcpUserTimeout_ignoresNoneAndNumbersNotAboveZero() {
+        val outbound = OutboundBean(protocol = "vless", streamSettings = OutboundBean.StreamSettingsBean())
+
+        for (none in listOf(null, 0, -1)) {
+            CoreOutboundBuilder.applyTcpUserTimeout(outbound, none)
+        }
+
+        assertNull(outbound.streamSettings?.sockopt)
+    }
+
+    @Test
+    fun aTcpOutboundCarriesTheTcpUserTimeoutOfItsProfileAndAUdpOneLeavesItOut() {
+        val socks = ProfileItem.create(EConfigType.SOCKS).apply {
+            server = "1.2.3.4"
+            serverPort = "1080"
+            dialMode = "code-1"
+            tcpUserTimeout = 10000
+        }
+        val outbound = CoreOutboundBuilder.convert(socks)
+        assertEquals(10000, outbound?.streamSettings?.sockopt?.tcpUserTimeout)
+        assertEquals("code-1", outbound?.streamSettings?.sockopt?.dialMode)
+
+        // Over mKCP the connection is UDP: the profile keeps its value, and the outbound leaves it out.
+        val kcp = ProfileItem.create(EConfigType.VMESS).apply {
+            server = "1.2.3.4"
+            serverPort = "443"
+            password = "uuid"
+            method = "auto"
+            network = "kcp"
+            dialMode = "code-1"
+            tcpUserTimeout = 10000
+        }
+        val kcpOutbound = CoreOutboundBuilder.convert(kcp)
+        assertEquals("code-1", kcpOutbound?.streamSettings?.sockopt?.dialMode)
+        assertNull(kcpOutbound?.streamSettings?.sockopt?.tcpUserTimeout)
+        assertEquals(10000, kcp.tcpUserTimeout)
+        kcp.network = "tcp"
+        assertEquals(10000, CoreOutboundBuilder.convert(kcp)?.streamSettings?.sockopt?.tcpUserTimeout)
+    }
+
+    @Test
+    fun test_toOutboundAetherExit_carriesTheTcpUserTimeoutOfTheAetherProfile() {
+        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(dialMode = "code-1", tcpUserTimeout = 10000))!!
+        assertEquals(10000, exit.streamSettings?.sockopt?.tcpUserTimeout)
+        assertEquals("code-1", exit.streamSettings?.sockopt?.dialMode)
+        assertNull(exit.streamSettings?.network)
+
+        // Alone it makes the stream settings of its own, with no transport to name.
+        val timeoutOnly = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(tcpUserTimeout = 7000))!!
+        assertEquals(7000, timeoutOnly.streamSettings?.sockopt?.tcpUserTimeout)
+        assertNull(timeoutOnly.streamSettings?.sockopt?.dialMode)
+        assertNull(timeoutOnly.streamSettings?.network)
+        assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN)!!.streamSettings)
+    }
+
+    @Test
+    fun anAetherOutboundToItsCoreTakesNoTcpUserTimeout() {
+        // What it reaches is on the loopback address; the exit-node takes the profile's, see toOutboundAetherExit.
+        val aether = ProfileItem.create(EConfigType.AETHER).apply {
+            aetherProtocol = "masque"
+            aetherTransport = "h2"
+            tcpUserTimeout = 10000
+        }
+        assertNull(CoreOutboundBuilder.convert(aether)?.streamSettings?.sockopt?.tcpUserTimeout)
+    }
+
+    companion object {
+        /**
+         * The settings storage as a subclass-mocked handle, as SubscriptionIndexTest makes one: MMKV's decode
+         * methods are native, which the default inline mock maker cannot stand in for, and MMKV.initialize
+         * never runs in unit tests. convert reads the global settings (mux) of the store as it finishes an
+         * outbound; the handle answers every read with the default passed to it, as an empty store does.
+         */
+        private val settings: MMKV = Mockito.mock(MMKV::class.java, Mockito.withSettings().mockMaker(MockMakers.SUBCLASS))
+
+        @BeforeAll
+        @JvmStatic
+        fun initializeSettingsStorage() {
+            // The storages of MmkvManager are lazy: the static mock must stand when the settings one is first read.
+            mockStatic(MMKV::class.java).use {
+                it.`when`<MMKV> { MMKV.mmkvWithID("SETTING", MMKV.MULTI_PROCESS_MODE) }.thenReturn(settings)
+                MmkvManager.decodeSettingsBool("test-initialize", false)
+            }
+            whenever(settings.decodeBool(any(), any())).thenAnswer { it.getArgument<Boolean>(1) }
+            whenever(settings.decodeString(any(), any<String>())).thenAnswer { it.getArgument<String?>(1) }
+        }
     }
 }

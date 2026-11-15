@@ -30,6 +30,7 @@ class ServerHttpActivity : BaseServerActivity() {
             CommonBasicFields(uiState)
             HttpProtocolFields(uiState)
             CommonDialModeField(uiState)
+            CommonTcpUserTimeoutField(uiState)
             CommonTargetStrategyField(uiState)
 
         }
@@ -46,6 +47,12 @@ class ServerHttpActivity : BaseServerActivity() {
             stringResource(R.string.server_lab_id4),
             state.password,
             { state.password = it }
+        )
+
+        FinalMaskField(
+            stringResource(R.string.server_lab_final_mask),
+            state.finalMask,
+            { state.finalMask = it }
         )
     }
 }

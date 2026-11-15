@@ -45,6 +45,7 @@
     <string name="menu_item_import_config_manually_trojan">ٱووردن [Trojan]</string>
     <string name="menu_item_import_config_manually_wireguard">ٱووردن [WireGuard]</string>
     <string name="menu_item_import_config_manually_hysteria2">ٱووردن [Hysteria2]</string>
+    <string name="menu_item_import_config_manually_masque">ٱووردن [MASQUE]</string>
     <string name="confirm_delete_visible_profiles">پوی کانفیگا ک هیم سکو نشووݩ داڌه ابۊن پاک ابۊن، هنی هم اخۊی پاکسووݩ کۊنی؟</string>
     <string name="confirm_delete_duplicate_profiles">پوی کانفیگا تکراری ک هیم سکو نشووݩ داڌه ابۊن پاک ابۊن، هنی هم اخۊی پاکسووݩ کۊنی؟</string>
     <string name="confirm_delete_invalid_profiles">ٱول کانفیگا ن آزمایش کۊنین. پوی کانفیگا نا موئتبر ک هیم سکو نشووݩ داڌه ابۊن پاک ابۊن، هنی هم اخۊی پاکسووݩ کۊنی؟</string>
@@ -73,6 +74,7 @@
     <string name="server_lab_request_host_h2">هاست h2</string>
     <string name="server_lab_request_host_quic">ٱمنیت QUIC</string>
     <string name="server_lab_request_host_grpc">Authority gRPC</string>
+    <string name="server_lab_request_host_masque">هاست MASQUE</string>
     <string name="server_lab_path">تور</string>
     <string name="server_lab_path_ws">تور WS</string>
     <string name="server_lab_path_httpupgrade">تور HTTPUpgrade</string>
@@ -81,11 +83,15 @@
     <string name="server_lab_path_quic">کیلیت QUIC</string>
     <string name="server_lab_path_kcp">KCP seed</string>
     <string name="server_lab_path_grpc">نوم سرویس gRPC</string>
+    <string name="server_lab_path_masque">تور MASQUE</string>
     <string name="server_lab_stream_security" translatable="false">TLS</string>
     <string name="server_lab_stream_fingerprint">جا کلک</string>
     <string name="server_lab_stream_alpn" translatable="false">ALPN</string>
     <string name="server_lab_cipher_suites">Cipher Suites</string>
+    <string name="server_lab_curve_preferences">Curve Preferences</string>
+    <string name="server_lab_enable_session_resumption">Enable Session Resumption</string>
     <string name="toast_cipher_suites_need_unsafe">cipherSuites فقط وا fingerprint unsafe اعمال ابۊ. unsafe نه انتخاب کنین یا cipherSuites نه خالی کنین.</string>
+    <string name="toast_curve_preferences_need_unsafe">curvePreferences فقط وا fingerprint unsafe اعمال ابۊ. unsafe نه انتخاب کنین یا curvePreferences نه خالی کنین.</string>
     <string name="toast_websocket_alpn_http1_only">WebSocket وو HTTPUpgrade فقط وا alpn http/1.1 یا بی alpn وصل ابۊن. http/1.1 نه انتخاب کنین یا alpn نه خالی بلین.</string>
     <string name="server_lab_allow_insecure">تئیڌ گوواهی ن نیڌه بگرین (allowInsecure)</string>
     <string name="server_lab_sni" translatable="false">SNI</string>
@@ -105,6 +111,10 @@
     <string name="server_lab_secret_key">کیلیت سیخومی</string>
     <string name="server_lab_reserved">Reserved(اختیاری، وا کاما (,) ز یک جوڌا ابۊن)</string>
     <string name="server_lab_local_address">نشۊوی مهلی (اختیاری IPv4/IPv6، وا کاما (,) ز یک جوڌا ابۊن)</string>
+    <string name="server_lab_local_address_hint">اگه خالی بی، پؽش فرز %1$s سی و کار گرؽڌه وابی. نشۊویا IPv6 فقظ وختؽ کار گرؽڌه وابیڌه که IPv6 رۊشن بی.</string>
+    <string name="server_lab_masque_warp_settings">WARP</string>
+    <string name="server_lab_masque_warp_private_key">کیلیت سیخومی WARP</string>
+    <string name="server_lab_masque_warp_public_key">کیلیت پوی وولاتی WARP</string>
     <string name="server_lab_local_mtu">MTU(اختیاری، پؽش فرز 1420)</string>
     <string name="server_lab_remote_dns">remoteDNS (اختياری، نشۊویا IPv4/IPv6 جوڌا وابیڌه وا کاما)</string>
     <string name="server_lab_remote_dns_hint">اگه خالی بی، پؽش فرز %1$s سی و کار گرؽڌه وابی. نشۊویا IPv6 فقظ وختؽ کار گرؽڌه وابیڌه که IPv6 رۊشن بی.</string>
@@ -128,6 +138,9 @@
     <string name="server_lab_request_host6">هاست(SNI)(اختیاری)</string>
     <string name="toast_action_not_allowed">ای کار ممنۊع هڌ</string>
     <string name="server_obfs_password">رزم obfs</string>
+    <string name="server_obfs_type">نوع مبهم‌سازی</string>
+    <string name="server_lab_min_packet_size">حداقل اندازه بسته (اختیاری، پیش‌فرض 512)</string>
+    <string name="server_lab_max_packet_size">حداکثر اندازه بسته (اختیاری، پیش‌فرض 1200)</string>
     <string name="server_lab_port_hop">گوم پورت (پورت سرورن ز نۊ هؽل اکونه)</string>
     <string name="server_lab_port_hop_interval">فاسله گوم پورت (سانیه)</string>
     <string name="server_lab_bandwidth_down">ب لم ٱووڌن پئنا باند (واهڌ)</string>
@@ -141,6 +154,9 @@
     <string name="preset_default">پؽش فرز</string>
     <string name="acc_choose_preset">انتخاب یه %1$s آماده</string>
     <string name="server_lab_dial_mode" translatable="false">dialMode</string>
+    <string name="server_lab_tcp_user_timeout" translatable="false">tcpUserTimeout</string>
+    <string name="server_hint_tcp_user_timeout">میلی‌ثانیه (مثلا 10000). خالی = پؽش فرز سیستم.</string>
+    <string name="aether_lab_exit_tcp_user_timeout" translatable="false">exit-node tcpUserTimeout</string>
     <string name="server_lab_ech_config_list" translatable="false">echConfigList</string>
     <string name="server_lab_ech_outbound">echOutbound خام JSON، قالوو: { OutboundObject }</string>
     <string name="toast_ech_outbound_needs_ech_config_list">سی echOutbound، echConfigList لازم هڌ</string>
@@ -307,6 +323,7 @@
     <string name="title_oss_license">موجوزا کود بونچک</string>
     <string name="title_translators">ولرنی کارووݩ</string>
     <string name="title_tg_channel">تورگه تلگرام</string>
+    <string name="title_donate">هیاری مالی</string>
 
     <string name="title_pref_promotion">تبلیقات</string>
 
@@ -540,6 +557,7 @@
     <string name="acc_download_file">دانلود فایلا بونچک جوقرافیایی</string>
     <string name="acc_qr_code">کود QR</string>
     <string name="acc_copy_log">لف گیری گوزارش</string>
+    <string name="acc_copy_address">لف گیری نشۊوی %1$s</string>
     <string name="acc_clear_log">روفتن گوزارش</string>
     <string name="acc_add_rule">ٱووردن قانووݩ</string>
     <string name="acc_start">ره وستن سرویس</string>
@@ -583,7 +601,7 @@
     <string name="aether_lab_exit_final_mask">finalMask خام JSON سی exit-node، قالوو: { FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom (پؽش فرز)</string>
     <string name="label_numbered">%1$s (%2$d)</string>
-    <string name="aether_hint_exit_node">هسته زه ری خروجی ای پروفایل وو بیرون وصل ابۊ، چی گامی زه زنجیره پروکسی؛ finalMask وو dialMode پایین فقط سی freedom ـن</string>
+    <string name="aether_hint_exit_node">هسته زه ری خروجی ای پروفایل وو بیرون وصل ابۊ، چی گامی زه زنجیره پروکسی؛ finalMask، dialMode وو tcpUserTimeout پایین فقط سی freedom ـن</string>
     <string name="aether_exit_node_unusable">خروجی پروفایل exit-node «%1$s» ساخته نبی؛ یه پروفایل دیه یا freedom انتخاب کنین</string>
     <string name="aether_exit_node_ech_unusable">echOutbound پروفایل exit-node «%1$s» قابل استفاده نی؛ من هموو پروفایل درسس کۊنین، یا یه پروفایل دیه یا freedom انتخاب کنین</string>
     <string name="toast_profile_name_not_found">هیچ پروفایلی وا نوم «%1$s» پیدا نبی</string>

@@ -2,6 +2,7 @@ package com.v2ray.ang.dto.entities
 
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.extension.isNotNullEmpty
 import com.v2ray.ang.util.Utils
 
 data class ProfileItem(
@@ -24,6 +25,7 @@ data class ProfileItem(
     var headerType: String? = null,
     var host: String? = null,
     var path: String? = null,
+    var headers: String? = null,
     var seed: String? = null,
     var kcpMtu: Int? = null,
     var kcpTti: Int? = null,
@@ -42,6 +44,9 @@ data class ProfileItem(
     var alpn: String? = null,
     var fingerPrint: String? = null,
     var cipherSuites: String? = null,
+    // PattNG: TLS curvePreferences, the names joined by ',' as alpn's are, and enableSessionResumption, after cipherSuites
+    var curvePreferences: String? = null,
+    var enableSessionResumption: Boolean? = null,
     var insecure: Boolean? = null,
     var echConfigList: String? = null,
     var echOutbound: String? = null,
@@ -60,7 +65,10 @@ data class ProfileItem(
     var mtu: Int? = null,
     var remoteDNS: String? = null,
 
+    var obfs: String? = null,
     var obfsPassword: String? = null,
+    var minPacketSize: String? = null,
+    var maxPacketSize: String? = null,
     var portHopping: String? = null,
     var portHoppingInterval: String? = null,
     @Deprecated("Use pinnedCA256")
@@ -73,11 +81,19 @@ data class ProfileItem(
     var policyGroupFilter: String? = null,
     var policyGroupTestOutbounds: Boolean? = null,
     var policyGroupFallbackTag: String? = null,
+    @Deprecated("Use proxyChainProfileList")
     var proxyChainProfiles: String? = null,
+    var proxyChainProfileList: List<String>? = null,
 
     var browserDialerMode: String? = null,
 
     var dialMode: String? = null,
+
+    /**
+     * PattNG: sockopt.tcpUserTimeout of the outbound, in milliseconds, after dialMode; null when unset. It counts only
+     * where the outbound connects over TCP, see TcpUserTimeoutRule; an Aether profile's is that of its freedom exit-node.
+     */
+    var tcpUserTimeout: Int? = null,
 
     /**
      * Xray targetStrategy of the outbound built for this profile; null means the profile's default, see
@@ -170,9 +186,10 @@ data class ProfileItem(
             ProfileItem(configType = configType)
 
         /**
-         * PattNG: the names of the members of a proxy chain, as [proxyChainProfilesOf] writes them into
-         * [proxyChainProfiles], in their order: separated by commas, a comma or a backslash that is part of a name
-         * written after a backslash. A chain written before, whose names had no backslash, reads as it did.
+         * PattNG: the names of the members of a proxy chain, as PattNG wrote them into [proxyChainProfiles] before
+         * [proxyChainProfileList] (upstream #6438), in their order: separated by commas, a comma or a backslash that is
+         * part of a name written after a backslash. A chain written before that, whose names had no backslash, reads as
+         * it did. See [moveLegacyProxyChain].
          */
         fun proxyChainMembersOf(text: String?): List<String> {
             if (text.isNullOrEmpty()) return emptyList()
@@ -200,10 +217,30 @@ data class ProfileItem(
             members += member.toString()
             return members
         }
+    }
 
-        /** PattNG: [members], the names of the members of a proxy chain in their order, as [proxyChainProfiles] holds them. */
-        fun proxyChainProfilesOf(members: List<String>): String =
-            members.joinToString(",") { it.replace("\\", "\\\\").replace(",", "\\,") }
+    /**
+     * PattNG: the names of the members of this proxy chain in their order: [proxyChainProfileList], or, for a chain still
+     * stored in [proxyChainProfiles] the way PattNG wrote it before the list (a backup of an older PattNG restored after
+     * the migration ran), those names, see [proxyChainMembersOf].
+     */
+    @Suppress("DEPRECATION") // Reads the field upstream #6438 deprecated; remove together with moveLegacyProxyChain.
+    fun proxyChainMembers(): List<String> =
+        proxyChainProfileList?.takeIf { it.isNotEmpty() } ?: proxyChainMembersOf(proxyChainProfiles)
+
+    /**
+     * PattNG: moves the members of a chain stored in [proxyChainProfiles] into [proxyChainProfileList] (upstream #6438),
+     * read as PattNG wrote them there, see [proxyChainMembersOf]: a comma or a backslash inside a name stays in it, and
+     * nothing is trimmed, where upstream's split on every comma would cut such a name in two. Clears the old field;
+     * false when there is nothing to move or the list is set already. Remove it, and the fallback of
+     * [proxyChainMembers], once no supported PattNG release or backup stores members in [proxyChainProfiles].
+     */
+    @Suppress("DEPRECATION") // Moves off the field upstream #6438 deprecated.
+    fun moveLegacyProxyChain(): Boolean {
+        if (proxyChainProfiles.isNullOrEmpty() || !proxyChainProfileList.isNullOrEmpty()) return false
+        proxyChainProfileList = proxyChainMembersOf(proxyChainProfiles)
+        proxyChainProfiles = null
+        return true
     }
 
     fun getServerAddressAndPort(): String {
@@ -212,6 +249,11 @@ data class ProfileItem(
         }
         return "${Utils.getIpv6Address(server)}:$serverPort"
     }
+
+    fun isGeckoObfs(): Boolean =
+        obfs.equals("gecko", ignoreCase = true)
+            || minPacketSize.isNotNullEmpty()
+            || maxPacketSize.isNotNullEmpty()
 
     /**
      * Dedicated identity for "remove duplicate configurations".

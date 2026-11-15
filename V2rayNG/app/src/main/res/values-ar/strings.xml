@@ -45,6 +45,7 @@
     <string name="menu_item_import_config_manually_trojan">إضافة [Trojan]</string>
     <string name="menu_item_import_config_manually_wireguard">إضافة [WireGuard]</string>
     <string name="menu_item_import_config_manually_hysteria2">إضافة [Hysteria2]</string>
+    <string name="menu_item_import_config_manually_masque">إضافة [MASQUE]</string>
     <string name="confirm_delete_visible_profiles">هل أنت متأكد من أنك تريد حذف جميع ملفات التعريف المعروضة حاليًا؟</string>
     <string name="confirm_delete_duplicate_profiles">هل أنت متأكد من أنك تريد حذف جميع ملفات التعريف المكررة المعروضة حاليًا؟</string>
     <string name="confirm_delete_invalid_profiles">يرجى اختبار ملفات التعريف أولًا. هل أنت متأكد من أنك تريد حذف جميع ملفات التعريف غير الصالحة المعروضة حاليًا؟</string>
@@ -73,6 +74,7 @@
     <string name="server_lab_request_host_h2">h2 host</string>
     <string name="server_lab_request_host_quic">QUIC security</string>
     <string name="server_lab_request_host_grpc">gRPC Authority</string>
+    <string name="server_lab_request_host_masque">MASQUE host</string>
     <string name="server_lab_path">path</string>
     <string name="server_lab_path_ws">ws path</string>
     <string name="server_lab_path_httpupgrade">httpupgrade path</string>
@@ -81,11 +83,15 @@
     <string name="server_lab_path_quic">QUIC key</string>
     <string name="server_lab_path_kcp">kcp seed</string>
     <string name="server_lab_path_grpc">gRPC serviceName</string>
+    <string name="server_lab_path_masque">MASQUE path</string>
     <string name="server_lab_stream_security" translatable="false">TLS</string>
     <string name="server_lab_stream_fingerprint">البصمة</string>
     <string name="server_lab_stream_alpn" translatable="false">ALPN</string>
     <string name="server_lab_cipher_suites">مجموعات التشفير (Cipher Suites)</string>
+    <string name="server_lab_curve_preferences">تفضيلات المنحنيات (Curve Preferences)</string>
+    <string name="server_lab_enable_session_resumption">استئناف الجلسة (Enable Session Resumption)</string>
     <string name="toast_cipher_suites_need_unsafe">لا تُطبَّق cipherSuites إلا مع بصمة unsafe. اختر unsafe أو أفرغ cipherSuites.</string>
+    <string name="toast_curve_preferences_need_unsafe">لا تُطبَّق curvePreferences إلا مع بصمة unsafe. اختر unsafe أو أفرغ curvePreferences.</string>
     <string name="toast_websocket_alpn_http1_only">لا يتصل WebSocket وHTTPUpgrade إلا مع alpn بقيمة http/1.1 أو بدونه. اختر http/1.1 أو اترك alpn فارغًا.</string>
     <string name="server_lab_allow_insecure">تخطي التحقق من الشهادة (allowInsecure)</string>
     <string name="server_lab_sni" translatable="false">SNI</string>
@@ -105,6 +111,10 @@
     <string name="server_lab_secret_key">المفتاح السري</string>
     <string name="server_lab_reserved">Reserved (اختياري، مفصول بفواصل)</string>
     <string name="server_lab_local_address">العنوان المحلي (اختياري IPv4/IPv6، مفصولة بفواصل)</string>
+    <string name="server_lab_local_address_hint">إذا كان فارغًا، فسيُستخدم %1$s افتراضيًا. لا تُستخدم عناوين IPv6 إلا عند تفعيل IPv6.</string>
+    <string name="server_lab_masque_warp_settings">WARP</string>
+    <string name="server_lab_masque_warp_private_key">المفتاح السري WARP</string>
+    <string name="server_lab_masque_warp_public_key">المفتاح العام WARP</string>
     <string name="server_lab_local_mtu">MTU (اختياري، الافتراضي 1420)</string>
     <string name="server_lab_remote_dns">remoteDNS (اختياري، عناوين IPv4/IPv6 مفصولة بفواصل)</string>
     <string name="server_lab_remote_dns_hint">إذا كان فارغًا، فسيُستخدم %1$s افتراضيًا. لا تُستخدم عناوين IPv6 إلا عند تفعيل IPv6.</string>
@@ -128,6 +138,9 @@
     <string name="server_lab_request_host6">مضيف (SNI) (اختياري)</string>
     <string name="toast_action_not_allowed">الإجراء غير مسموح به</string>
     <string name="server_obfs_password">كلمة مرور Obfs</string>
+    <string name="server_obfs_type">نوع التمويه</string>
+    <string name="server_lab_min_packet_size">الحد الأدنى لحجم الحزمة (اختياري، الافتراضي 512)</string>
+    <string name="server_lab_max_packet_size">الحد الأقصى لحجم الحزمة (اختياري، الافتراضي 1200)</string>
     <string name="server_lab_port_hop">التنقل بين المنافذ (يتجاوز قيمة المنفذ)</string>
     <string name="server_lab_port_hop_interval">فاصل تبديل المنفذ (بالثواني)</string>
     <string name="server_lab_bandwidth_down">عرض النطاق للتنزيل (الوحدات المدعومة: k/m/g/t)</string>
@@ -141,6 +154,9 @@
     <string name="preset_default">الافتراضي</string>
     <string name="acc_choose_preset">اختيار %1$s جاهز</string>
     <string name="server_lab_dial_mode" translatable="false">dialMode</string>
+    <string name="server_lab_tcp_user_timeout" translatable="false">tcpUserTimeout</string>
+    <string name="server_hint_tcp_user_timeout">بالمللي ثانية (مثلًا 10000). فارغ = الافتراضي للنظام.</string>
+    <string name="aether_lab_exit_tcp_user_timeout" translatable="false">exit-node tcpUserTimeout</string>
     <string name="server_lab_ech_config_list" translatable="false">echConfigList</string>
     <string name="server_lab_ech_outbound">JSON خام لحقل echOutbound، بالتنسيق: { OutboundObject }</string>
     <string name="toast_ech_outbound_needs_ech_config_list">يتطلب echOutbound وجود echConfigList</string>
@@ -307,6 +323,7 @@
     <string name="title_oss_license">تراخيص المصادر المفتوحة</string>
     <string name="title_translators">المترجمون</string>
     <string name="title_tg_channel">قناة Telegram</string>
+    <string name="title_donate">تبرع</string>
 
     <string name="title_pref_promotion">ترويج</string>
 
@@ -548,6 +565,7 @@
     <string name="acc_download_file">تنزيل ملفات الموارد</string>
     <string name="acc_qr_code">رمز QR</string>
     <string name="acc_copy_log">نسخ السجل</string>
+    <string name="acc_copy_address">نسخ عنوان %1$s</string>
     <string name="acc_clear_log">مسح السجل</string>
     <string name="acc_add_rule">إضافة قاعدة توجيه</string>
     <string name="acc_start">بدء الخدمة</string>
@@ -591,7 +609,7 @@
     <string name="aether_lab_exit_final_mask">JSON خام لحقل finalMask في exit-node، بالتنسيق: { FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom (الافتراضي)</string>
     <string name="label_numbered">%1$s (%2$d)</string>
-    <string name="aether_hint_exit_node">تتصل النواة بالخارج عبر الصادر الخاص بهذا الملف، كما عبر قفزة في سلسلة الوكيل؛ وحقلا finalMask وdialMode أدناه لـ freedom وحده</string>
+    <string name="aether_hint_exit_node">تتصل النواة بالخارج عبر الصادر الخاص بهذا الملف، كما عبر قفزة في سلسلة الوكيل؛ وحقول finalMask وdialMode وtcpUserTimeout أدناه لـ freedom وحده</string>
     <string name="aether_exit_node_unusable">ملف exit-node «%1$s» لا يعطي صادرًا؛ اختر ملفًا آخر، أو freedom</string>
     <string name="aether_exit_node_ech_unusable">لا يمكن استخدام echOutbound لملف exit-node «%1$s»؛ أصلحه في ذلك الملف، أو اختر ملفًا آخر، أو freedom</string>
     <string name="toast_profile_name_not_found">لم يُعثر على أي ملف باسم «%1$s»</string>

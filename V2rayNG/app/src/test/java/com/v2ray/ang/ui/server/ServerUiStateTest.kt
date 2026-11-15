@@ -14,6 +14,7 @@ import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.fmt.AetherFmt
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -60,6 +61,32 @@ class ServerUiStateTest {
 
         state.echOutbound = "  "
         assertNull(state.toProfileItem(profile).echOutbound)
+    }
+
+    @Test
+    fun theCurvePreferencesAndSessionResumptionAreCarriedToTheProfile() {
+        // PattNG: the editor's curvePreferences dropdown and enableSessionResumption switch, after cipherSuites.
+        val profile = ProfileItem.create(EConfigType.VLESS).apply {
+            security = AppConfig.TLS
+            curvePreferences = "X25519MLKEM768,X25519"
+            enableSessionResumption = true
+        }
+
+        val state = ServerUiState.from(profile)
+        assertEquals("X25519MLKEM768,X25519", state.curvePreferences)
+        assertTrue(state.enableSessionResumption)
+        val built = state.toProfileItem(profile)
+        assertEquals("X25519MLKEM768,X25519", built.curvePreferences)
+        assertEquals(true, built.enableSessionResumption)
+
+        // A profile stored before they existed starts with none and off.
+        val older = ServerUiState.from(ProfileItem.create(EConfigType.VLESS))
+        assertEquals("", older.curvePreferences)
+        assertEquals(false, older.enableSessionResumption)
+        state.curvePreferences = ""
+        state.enableSessionResumption = false
+        assertEquals("", state.toProfileItem(profile).curvePreferences)
+        assertEquals(false, state.toProfileItem(profile).enableSessionResumption)
     }
 
     @Test
@@ -341,6 +368,85 @@ class ServerUiStateTest {
         assertEquals(false, state.hasOtherAetherSettings)
     }
 
+    // PattNG: the tcpUserTimeout, as typed, saved as a whole number above 0, kept where it does not count.
+    @Test
+    fun theTcpUserTimeoutOpensAsTheProfileHoldsItAndIsSavedAsAWholeNumberAboveZeroOrNone() {
+        val profile = ProfileItem.create(EConfigType.VLESS).apply { tcpUserTimeout = 10000 }
+        val state = ServerUiState.from(profile)
+        assertEquals("10000", state.tcpUserTimeout)
+        assertEquals(10000, state.toProfileItem(profile).tcpUserTimeout)
+        assertEquals("", ServerUiState.from(ProfileItem.create(EConfigType.VLESS).apply { tcpUserTimeout = 0 }).tcpUserTimeout)
+
+        state.tcpUserTimeout = " 2500 "
+        assertEquals(2500, state.toProfileItem(profile).tcpUserTimeout)
+        for (none in listOf("", " ", "0", "-1", "2s")) {
+            state.tcpUserTimeout = none
+            assertNull(state.toProfileItem(profile).tcpUserTimeout, none)
+        }
+        // Over mKCP it does not count, and it is kept, as the dialMode is.
+        state.tcpUserTimeout = "10000"
+        state.network = "kcp"
+        assertEquals(false, state.tcpUserTimeoutApplies)
+        assertEquals(10000, state.toProfileItem(profile).tcpUserTimeout)
+    }
+
+    @Test
+    fun theTcpUserTimeoutShowsOnlyWhereTheOutboundConnectsOverTcp() {
+        val vless = ServerUiState.from(ProfileItem.create(EConfigType.VLESS).apply { network = "tcp" })
+        assertEquals(true, vless.tcpUserTimeoutApplies)
+        vless.network = "xhttp"
+        vless.streamSecurity = AppConfig.TLS
+        vless.alpn = "h3"
+        assertEquals(false, vless.tcpUserTimeoutApplies)
+        vless.alpn = "h2"
+        assertEquals(true, vless.tcpUserTimeoutApplies)
+        vless.streamSecurity = AppConfig.REALITY
+        vless.alpn = "h3"
+        assertEquals(true, vless.tcpUserTimeoutApplies)
+
+        val masque = ServerUiState.from(ProfileItem.create(EConfigType.MASQUE).apply { alpn = "h3" })
+        assertEquals(false, masque.tcpUserTimeoutApplies)
+        masque.alpn = "h2"
+        assertEquals(true, masque.tcpUserTimeoutApplies)
+
+        for (type in listOf(EConfigType.WIREGUARD, EConfigType.HYSTERIA2)) {
+            assertEquals(false, ServerUiState.from(ProfileItem.create(type)).tcpUserTimeoutApplies, type.name)
+        }
+        for (type in listOf(EConfigType.SOCKS, EConfigType.HTTP)) {
+            assertEquals(true, ServerUiState.from(ProfileItem.create(type)).tcpUserTimeoutApplies, type.name)
+        }
+    }
+
+    @Test
+    fun theExitNodesTcpUserTimeoutShowsOnlyWhereTheAetherCoreConnectsOutOverTcpAndIsInTheFold() {
+        val state = ServerUiState.from(ProfileItem.create(EConfigType.AETHER).apply { aetherProtocol = AetherProtocol.MASQUE.type })
+        // MASQUE over HTTP/3, the default, reaches WARP over UDP.
+        assertEquals(false, state.aetherConnectsOverTcp)
+        state.aetherTransport = AetherTransport.HTTP2.type
+        assertEquals(true, state.aetherConnectsOverTcp)
+        state.aetherProtocol = AetherProtocol.WIREGUARD.type
+        assertEquals(false, state.aetherConnectsOverTcp)
+        state.aetherTor = AetherTor.ONLY.type
+        assertEquals(true, state.aetherConnectsOverTcp)
+        state.aetherTor = AetherTor.OFF.type
+        state.aetherPsiphon = AetherPsiphon.REVERSE.type
+        state.aetherProtocol = AetherProtocol.MASQUE.type
+        state.aetherTransport = AetherTransport.HTTP3.type
+        assertEquals(true, state.aetherConnectsOverTcp)
+        state.aetherPsiphon = AetherPsiphon.OFF.type
+        assertEquals(false, state.aetherConnectsOverTcp)
+        // A command written by hand runs in place of the settings.
+        state.aetherCommand = "aether --protocol masque --h2"
+        assertEquals(true, state.aetherConnectsOverTcp)
+        state.aetherCommand = ""
+
+        assertEquals(false, state.hasOtherAetherSettings)
+        state.tcpUserTimeout = "10000"
+        assertEquals(true, state.hasOtherAetherSettings)
+        state.tcpUserTimeout = "0"
+        assertEquals(false, state.hasOtherAetherSettings)
+    }
+
     @Test
     fun theFingerprintStartsAsChromesAndIsStoredAsChosen() {
         val state = ServerUiState.from(ProfileItem.create(EConfigType.AETHER))
@@ -466,5 +572,51 @@ class ServerUiStateTest {
         val saved = state.toProfileItem(ProfileItem.create(EConfigType.AETHER), keepCommand = true)
         assertEquals(built, saved.aetherCommand)
         assertEquals(built, ServerUiState.from(saved).aetherCommand)
+    }
+
+    @Test
+    fun theHysteria2ObfsShownIsTheOneTheOutboundUses() {
+        // PattNG: packet sizes make a profile gecko (ProfileItem.isGeckoObfs), so the screen shows gecko for them.
+        fun shown(fields: ProfileItem.() -> Unit) =
+            ServerUiState.from(ProfileItem.create(EConfigType.HYSTERIA2).apply(fields)).shownHysteria2Obfs
+
+        assertEquals("none", shown { })
+        assertEquals("salamander", shown { obfsPassword = "secret" })
+        assertEquals("salamander", shown { obfs = "salamander"; obfsPassword = "secret" })
+        assertEquals("gecko", shown { obfs = "gecko"; obfsPassword = "secret" })
+        assertEquals("gecko", shown { obfs = "salamander"; obfsPassword = "secret"; minPacketSize = "600" })
+        assertEquals("gecko", shown { obfsPassword = "secret"; maxPacketSize = "1300" })
+        assertEquals("none", shown { obfs = "none"; obfsPassword = "secret" })
+    }
+
+    @Test
+    fun anotherHysteria2ObfsDropsWhatWouldKeepTheOldOne() {
+        // PattNG: as a gecko link is imported, with its default packet sizes.
+        val profile = ProfileItem.create(EConfigType.HYSTERIA2).apply {
+            obfs = "gecko"
+            obfsPassword = "secret"
+            minPacketSize = "512"
+            maxPacketSize = "1200"
+        }
+        val state = ServerUiState.from(profile)
+
+        state.chooseHysteria2Obfs("salamander")
+        assertEquals("salamander", state.shownHysteria2Obfs)
+        val salamander = state.toProfileItem(profile)
+        assertEquals("salamander", salamander.obfs)
+        assertEquals("secret", salamander.obfsPassword)
+        assertFalse(salamander.isGeckoObfs())
+
+        state.chooseHysteria2Obfs("gecko")
+        assertEquals("gecko", state.shownHysteria2Obfs)
+        assertTrue(state.toProfileItem(profile).isGeckoObfs())
+
+        state.chooseHysteria2Obfs("none")
+        assertEquals("none", state.shownHysteria2Obfs)
+        val none = state.toProfileItem(profile)
+        assertNull(none.obfs)
+        assertEquals("", none.obfsPassword)
+        assertNull(none.minPacketSize)
+        assertNull(none.maxPacketSize)
     }
 }

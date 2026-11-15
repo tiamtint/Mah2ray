@@ -17,8 +17,13 @@ data class VmessQRCode(
     var alpn: String = "",
     var fp: String = "",
     var cs: String = "",
+    // PattNG: curvePreferences as the profile holds them, and enableSessionResumption, "1" when on
+    var cp: String = "",
+    var esr: String = "",
     var insecure: String = "",
     var vcn: String = "",
     var pcs: String = "",
-    var dialMode: String = ""
+    var dialMode: String = "",
+    // PattNG: tcpUserTimeout in milliseconds, written where it counts (TcpUserTimeoutRule), blank otherwise
+    var tut: String = ""
 )

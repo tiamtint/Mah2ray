@@ -18,10 +18,12 @@ class TlsSettingsCheckTest {
         alpn: String? = null,
         type: EConfigType = EConfigType.VLESS,
         security: String? = AppConfig.TLS,
+        curvePreferences: String? = null,
     ) = ProfileItem.create(type).apply {
         this.security = security
         this.fingerPrint = fingerprint
         this.cipherSuites = cipherSuites
+        this.curvePreferences = curvePreferences
         this.network = network
         this.alpn = alpn
     }
@@ -90,6 +92,24 @@ class TlsSettingsCheckTest {
     }
 
     @Test
+    fun aMasqueProfileIsCheckedOverHttp2AsTheOthersAreAndOverHttp3TakesCurvesWithoutCipherSuites() {
+        val curves = "X25519MLKEM768,X25519"
+        fun masque(alpn: String?, fingerprint: String?, cipherSuites: String? = null, curvePreferences: String? = null) =
+            profile(fingerprint, cipherSuites, network = "masque", alpn = alpn, type = EConfigType.MASQUE, security = null, curvePreferences = curvePreferences)
+
+        // Over HTTP/2 the fingerprint builds the ClientHello, uTLS but for unsafe; MASQUE always runs over TLS.
+        assertEquals(Error.CIPHER_SUITES_NEED_UNSAFE, TlsSettingsCheck.validate(masque("h2", "chrome", cipherSuites = suites)))
+        assertEquals(Error.CIPHER_SUITES_NEED_UNSAFE, TlsSettingsCheck.validate(masque("h2", null, cipherSuites = suites)))
+        assertEquals(Error.CURVE_PREFERENCES_NEED_UNSAFE, TlsSettingsCheck.validate(masque("h2", "chrome", curvePreferences = curves)))
+        assertNull(TlsSettingsCheck.validate(masque("h2", "unsafe", cipherSuites = suites, curvePreferences = curves)))
+        // Over HTTP/3, as for a blank alpn, Go's crypto/tls applies the curves whatever fingerprint is left, and no
+        // cipherSuites are written.
+        for (alpn in listOf("h3", null, "")) {
+            assertNull(TlsSettingsCheck.validate(masque(alpn, "chrome", cipherSuites = suites, curvePreferences = curves)), "$alpn")
+        }
+    }
+
+    @Test
     fun anImportedWebSocketOrHttpUpgradeLinkGetsHttp1InPlaceOfAnyOtherAlpn() {
         for (network in listOf("ws", "httpupgrade")) {
             for (fingerprint in listOf("chrome", "unsafe", null)) {
@@ -125,5 +145,41 @@ class TlsSettingsCheckTest {
             TlsSettingsCheck.fixImportedAlpn(imported)
             assertEquals(alpn, imported.alpn, "${imported.configType} ${imported.network} ${imported.security}")
         }
+    }
+
+    // PattNG: curvePreferences are weighed as cipherSuites are: the fork passes uTLS no curve preferences either.
+    @Test
+    fun curvePreferencesNeedTheUnsafeFingerprintAsCipherSuitesDo() {
+        val curves = "X25519MLKEM768,X25519"
+        for (fingerprint in listOf("unsafe", "Unsafe")) {
+            assertNull(TlsSettingsCheck.validate(profile(fingerprint = fingerprint, curvePreferences = curves, network = "tcp")), fingerprint)
+        }
+        for (fingerprint in listOf("chrome", "", null, "randomized")) {
+            assertEquals(
+                Error.CURVE_PREFERENCES_NEED_UNSAFE,
+                TlsSettingsCheck.validate(profile(fingerprint = fingerprint, curvePreferences = curves, network = "tcp")),
+                "$fingerprint",
+            )
+        }
+        // No curvePreferences, nothing to refuse; enableSessionResumption is never refused.
+        assertNull(TlsSettingsCheck.validate(profile(fingerprint = "chrome", curvePreferences = " ", network = "tcp")))
+        assertNull(TlsSettingsCheck.validate(profile(fingerprint = "chrome", network = "tcp").apply { enableSessionResumption = true }))
+
+        // Where cipherSuites are not weighed, neither are curvePreferences.
+        assertNull(TlsSettingsCheck.validate(profile(fingerprint = "chrome", curvePreferences = curves, type = EConfigType.HYSTERIA2)))
+        assertNull(TlsSettingsCheck.validate(profile(fingerprint = "chrome", curvePreferences = curves, security = AppConfig.REALITY)))
+        assertNull(TlsSettingsCheck.validate(profile(fingerprint = "chrome", curvePreferences = curves, security = null)))
+        for (type in listOf(EConfigType.VMESS, EConfigType.VLESS, EConfigType.SHADOWSOCKS, EConfigType.TROJAN)) {
+            assertEquals(
+                Error.CURVE_PREFERENCES_NEED_UNSAFE,
+                TlsSettingsCheck.validate(profile(fingerprint = "chrome", curvePreferences = curves, network = "tcp", type = type)),
+                "$type",
+            )
+        }
+
+        // cipherSuites are told first, then curvePreferences, then the alpn.
+        assertEquals(Error.CIPHER_SUITES_NEED_UNSAFE, TlsSettingsCheck.validate(profile(fingerprint = "chrome", cipherSuites = suites, curvePreferences = curves, alpn = "h2")))
+        assertEquals(Error.CURVE_PREFERENCES_NEED_UNSAFE, TlsSettingsCheck.validate(profile(fingerprint = "chrome", curvePreferences = curves, alpn = "h2")))
+        assertEquals(Error.WEBSOCKET_ALPN_NOT_HTTP1, TlsSettingsCheck.validate(profile(fingerprint = "unsafe", curvePreferences = curves, alpn = "h2")))
     }
 }

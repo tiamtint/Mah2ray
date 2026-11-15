@@ -38,6 +38,7 @@ import com.v2ray.ang.ui.server.ServerCustomConfigActivity
 import com.v2ray.ang.ui.server.ServerGroupActivity
 import com.v2ray.ang.ui.server.ServerHttpActivity
 import com.v2ray.ang.ui.server.ServerHysteria2Activity
+import com.v2ray.ang.ui.server.ServerMasqueActivity
 import com.v2ray.ang.ui.server.ServerProxyChainActivity
 import com.v2ray.ang.ui.server.ServerShadowsocksActivity
 import com.v2ray.ang.ui.server.ServerSocksActivity
@@ -125,6 +126,8 @@ class MainActivity : HelperBaseComponentActivity() {
                     is MainAction.ShareClipboard -> shareToClipboard(action.guid)
                     is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
                     is MainAction.OpenSubscriptionLink -> openSubscriptionLink(action.url)
+                    is MainAction.CopyDonationAddress -> copyDonationAddress(action.address)
+                    MainAction.OpenAuthorTelegram -> Utils.openUri(this, AppConfig.AUTHOR_TELEGRAM_URL)
                     else -> mainViewModel.onAction(action)
                 }
             },
@@ -151,6 +154,12 @@ class MainActivity : HelperBaseComponentActivity() {
         Utils.openUri(this, safeUrl)
     }
 
+    /** PattNG: puts a donation address on the clipboard just as the Donate dialog shows it. */
+    private fun copyDonationAddress(address: String) {
+        Utils.setClipboard(this, address)
+        toastSuccess(R.string.toast_success)
+    }
+
     private fun navigateTo(destination: MainDestination) {
         val intent = when (destination) {
             MainDestination.Subscriptions -> Intent(this, SubSettingActivity::class.java)
@@ -162,11 +171,8 @@ class MainActivity : HelperBaseComponentActivity() {
             MainDestination.CheckUpdate -> Intent(this, CheckUpdateActivity::class.java)
             MainDestination.BackupRestore -> Intent(this, BackupActivity::class.java)
             MainDestination.About -> Intent(this, AboutActivity::class.java)
-            MainDestination.Promotion -> {
-                Utils.openUri(
-                    this,
-                    "${Utils.decode(AppConfig.APP_PROMOTION_URL)}?t=${System.currentTimeMillis()}"
-                )
+            MainDestination.TelegramChannel -> {
+                Utils.openUri(this, AppConfig.TG_CHANNEL_URL)
                 return
             }
         }
@@ -223,6 +229,7 @@ class MainActivity : HelperBaseComponentActivity() {
             EConfigType.TROJAN.value -> Intent(this, ServerTrojanActivity::class.java)
             EConfigType.WIREGUARD.value -> Intent(this, ServerWireguardActivity::class.java)
             EConfigType.HYSTERIA2.value -> Intent(this, ServerHysteria2Activity::class.java)
+            EConfigType.MASQUE.value -> Intent(this, ServerMasqueActivity::class.java)
             EConfigType.AETHER.value -> Intent(this, ServerAetherActivity::class.java)
             else -> Intent(this, ServerHttpActivity::class.java).apply {
                 putExtra("createConfigType", createConfigType)
@@ -265,7 +272,7 @@ class MainActivity : HelperBaseComponentActivity() {
 
     private fun editServer(guid: String, profile: ProfileItem) {
         val activityClass = when (profile.configType) {
-            EConfigType.CUSTOM -> ServerCustomConfigActivity::class.java
+            EConfigType.CUSTOM, EConfigType.CUSTOM_OUTBOUND -> ServerCustomConfigActivity::class.java
             EConfigType.POLICYGROUP -> ServerGroupActivity::class.java
             EConfigType.PROXYCHAIN -> ServerProxyChainActivity::class.java
             EConfigType.VMESS -> ServerVmessActivity::class.java
@@ -276,6 +283,7 @@ class MainActivity : HelperBaseComponentActivity() {
             EConfigType.TROJAN -> ServerTrojanActivity::class.java
             EConfigType.WIREGUARD -> ServerWireguardActivity::class.java
             EConfigType.HYSTERIA2 -> ServerHysteria2Activity::class.java
+            EConfigType.MASQUE -> ServerMasqueActivity::class.java
             EConfigType.AETHER -> ServerAetherActivity::class.java
             else -> ServerHttpActivity::class.java
         }

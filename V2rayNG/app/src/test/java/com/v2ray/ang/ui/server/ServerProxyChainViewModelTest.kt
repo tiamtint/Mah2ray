@@ -141,7 +141,7 @@ class ServerProxyChainViewModelTest {
         val stored = source.stored.getValue("guid-1")
         assertEquals(EConfigType.PROXYCHAIN, stored.configType)
         assertEquals("chain", stored.remarks)
-        assertEquals(listOf("entry", "exit"), ProfileItem.proxyChainMembersOf(stored.proxyChainProfiles))
+        assertEquals(listOf("entry", "exit"), stored.proxyChainProfileList)
         assertEquals("entry -> exit", stored.description)
         assertEquals("sub", stored.subscriptionId)
 
@@ -174,7 +174,7 @@ class ServerProxyChainViewModelTest {
 
         viewModel.save("chain", listOf("a, b", "exit"))
 
-        assertEquals(listOf("a, b", "exit"), ProfileItem.proxyChainMembersOf(source.stored.getValue("guid-1").proxyChainProfiles))
+        assertEquals(listOf("a, b", "exit"), source.stored.getValue("guid-1").proxyChainProfileList)
     }
 
     @Test
@@ -289,11 +289,12 @@ class ServerProxyChainViewModelTest {
     @Test
     fun theChainAndTheNamesOfTheProfilesAreReadOffTheMainThreadBeforeTheScreenShowsThem() {
         source.names.add("custom", EConfigType.CUSTOM)
+        source.names.add("outbound", EConfigType.CUSTOM_OUTBOUND)
         source.names.add("group", EConfigType.POLICYGROUP)
         source.names.add("chain", EConfigType.PROXYCHAIN)
         source.stored["chain-id"] = ProfileItem.create(EConfigType.PROXYCHAIN).apply {
             remarks = "chain"
-            proxyChainProfiles = ProfileItem.proxyChainProfilesOf(listOf(" entry ", "", "a\\b,c"))
+            proxyChainProfileList = listOf(" entry ", "", "a\\b,c")
         }
         val gate = CompletableDeferred<Unit>()
         source.openGate = gate
@@ -302,7 +303,8 @@ class ServerProxyChainViewModelTest {
         assertNull(viewModel.opened.value)
         gate.complete(Unit)
 
-        // Its members trimmed, a blank one left out; the profiles a chain can hold, neither custom ones nor groups nor chains.
+        // Its members trimmed, a blank one left out; the profiles a chain can hold, neither custom configurations nor
+        // custom outbounds nor groups nor chains.
         assertEquals(ProxyChainOpening("chain", listOf("entry", "a\\b,c"), listOf("entry", "exit")), viewModel.opened.value)
     }
 
@@ -316,5 +318,18 @@ class ServerProxyChainViewModelTest {
         source.stored["chain-id"] = ProfileItem.create(EConfigType.PROXYCHAIN).apply { remarks = "chain" }
 
         assertEquals(ProxyChainOpening("chain", listOf("", ""), listOf("entry", "exit")), viewModel(guid = "chain-id").opened.value)
+    }
+
+    // PattNG: a chain still stored the way PattNG wrote it before upstream #6438's list, as after a backup of an older
+    // PattNG is restored, opens with its names whole, a comma inside one included.
+    @Test
+    @Suppress("DEPRECATION")
+    fun aChainStoredTheOldWayOpensWithItsNamesWhole() {
+        source.stored["chain-id"] = ProfileItem.create(EConfigType.PROXYCHAIN).apply {
+            remarks = "chain"
+            proxyChainProfiles = """US\, Dallas,exit"""
+        }
+
+        assertEquals(ProxyChainOpening("chain", listOf("US, Dallas", "exit"), listOf("entry", "exit")), viewModel(guid = "chain-id").opened.value)
     }
 }

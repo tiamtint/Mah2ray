@@ -33,7 +33,7 @@ class CoreConfigContextBuilderTest {
         val same = aether("warp again", AetherProtocol.MASQUE)
         val other = aether("wg", AetherProtocol.WIREGUARD)
 
-        val (kept, leftOut) = CoreConfigContextBuilder.withOneAetherProfile(listOf(vless, first, other, same))
+        val (kept, leftOut) = CoreConfigContextBuilder.withOneAetherProfile(listOf(vless, first, other, same)) { it }
 
         assertEquals(listOf(vless, first, same), kept)
         assertEquals(listOf(other), leftOut)
@@ -45,7 +45,7 @@ class CoreConfigContextBuilderTest {
         val first = aether("warp", AetherProtocol.MASQUE)
         val elsewhere = aether("warp on 20808", AetherProtocol.MASQUE).apply { aetherListenPort = "20808" }
 
-        val (kept, leftOut) = CoreConfigContextBuilder.withOneAetherProfile(listOf(first, elsewhere))
+        val (kept, leftOut) = CoreConfigContextBuilder.withOneAetherProfile(listOf(first, elsewhere)) { it }
 
         assertEquals(listOf(first, elsewhere), kept)
         assertEquals(emptyList<ProfileItem>(), leftOut)
@@ -53,8 +53,8 @@ class CoreConfigContextBuilderTest {
 
     @Test
     fun aGroupWithoutAetherIsUnchanged() {
-        assertEquals(listOf(vless) to emptyList<ProfileItem>(), CoreConfigContextBuilder.withOneAetherProfile(listOf(vless)))
-        assertEquals(emptyList<ProfileItem>() to emptyList<ProfileItem>(), CoreConfigContextBuilder.withOneAetherProfile(emptyList()))
+        assertEquals(listOf(vless) to emptyList<ProfileItem>(), CoreConfigContextBuilder.withOneAetherProfile(listOf(vless)) { it })
+        assertEquals(emptyList<ProfileItem>() to emptyList<ProfileItem>(), CoreConfigContextBuilder.withOneAetherProfile(emptyList<ProfileItem>()) { it })
     }
 
     @Test
@@ -108,6 +108,7 @@ class CoreConfigContextBuilderTest {
             profile("group", EConfigType.POLICYGROUP),
             profile("chain", EConfigType.PROXYCHAIN),
             profile("custom", EConfigType.CUSTOM),
+            profile("outbound", EConfigType.CUSTOM_OUTBOUND),
             profile("shared", EConfigType.POLICYGROUP),
             shared,
         )
@@ -120,27 +121,49 @@ class CoreConfigContextBuilderTest {
         // A chain or a custom configuration cannot be a hop either, and is told by what it is.
         assertEquals(CoreConfigContext.UnresolvedName("chain", CHAIN_AS_HOP), hops("chain").second)
         assertEquals(CoreConfigContext.UnresolvedName("custom", CUSTOM_AS_HOP), hops("custom").second)
+        // A custom outbound, as upstream leaves it out of chains, is told as a custom configuration.
+        assertEquals(CoreConfigContext.UnresolvedName("outbound", CUSTOM_AS_HOP), hops("outbound").second)
         // A name no profile has is told as before.
         assertEquals(CoreConfigContext.UnresolvedName("gone", NOT_FOUND), hops("gone").second)
         // A group of the name stands aside for the one profile of it that can be a hop.
         assertEquals(listOf(shared) to null, hops("shared"))
     }
 
+    // PattNG: before upstream #6438 PattNG wrote the names of a chain into proxyChainProfiles, a comma or a backslash
+    // inside a name after a backslash; such a chain moves into proxyChainProfileList with its names whole.
     @Test
-    fun aChainKeepsACommaOrABackslashInsideTheNameOfAHop() {
+    @Suppress("DEPRECATION")
+    fun aChainStoredTheOldWayMovesIntoTheListWithItsNamesWhole() {
         val names = listOf("US, Dallas", "Exit", """back\slash""", """a\,b""", "")
-        assertEquals(names, ProfileItem.proxyChainMembersOf(ProfileItem.proxyChainProfilesOf(names)))
-        // A name with neither is written as before, and a chain written before reads as it did.
-        assertEquals("entry,warp,exit", ProfileItem.proxyChainProfilesOf(listOf("entry", "warp", "exit")))
+        val written = """US\, Dallas,Exit,back\\slash,a\\\,b,"""
+        assertEquals(names, ProfileItem.proxyChainMembersOf(written))
+        // A chain written before the escaping, whose names had no backslash, reads as it did, nothing trimmed.
         assertEquals(listOf("entry", " warp", "exit"), ProfileItem.proxyChainMembersOf("entry, warp,exit"))
         assertEquals(listOf("""a\b"""), ProfileItem.proxyChainMembersOf("""a\b"""))
         assertEquals(emptyList<String>(), ProfileItem.proxyChainMembersOf(null))
         assertEquals(emptyList<String>(), ProfileItem.proxyChainMembersOf(""))
+
+        val chain = ProfileItem.create(EConfigType.PROXYCHAIN).apply { proxyChainProfiles = written }
+        // Not moved yet, as after a backup of an older PattNG is restored: its names read all the same.
+        assertEquals(names, chain.proxyChainMembers())
+        assertTrue(chain.moveLegacyProxyChain())
+        assertEquals(names, chain.proxyChainProfileList)
+        assertNull(chain.proxyChainProfiles)
+        assertEquals(names, chain.proxyChainMembers())
+        // Moved once, it has nothing more to move; and a chain that has the list keeps it.
+        assertFalse(chain.moveLegacyProxyChain())
+        val listed = ProfileItem.create(EConfigType.PROXYCHAIN).apply {
+            proxyChainProfileList = listOf("entry", "exit")
+            proxyChainProfiles = "old,names"
+        }
+        assertFalse(listed.moveLegacyProxyChain())
+        assertEquals(listOf("entry", "exit"), listed.proxyChainMembers())
+        assertEquals(emptyList<String>(), ProfileItem.create(EConfigType.PROXYCHAIN).proxyChainMembers())
+
         // The hops of such a chain are found by their whole names.
         val dallas = vless.copy(remarks = "US, Dallas")
         val profiles = listOf(vless, dallas).associateBy { it.remarks }
-        val stored = ProfileItem.proxyChainProfilesOf(listOf("US, Dallas", "vless"))
-        assertEquals(listOf(dallas, vless) to null, CoreConfigContextBuilder.proxyChainHops(ProfileItem.proxyChainMembersOf(stored)) { name, _ ->
+        assertEquals(listOf(dallas, vless) to null, CoreConfigContextBuilder.proxyChainHops(listOf("US, Dallas", "vless")) { name, _ ->
             profiles[name]?.let { ByName.One(it) } ?: ByName.None
         })
     }
@@ -224,8 +247,8 @@ class CoreConfigContextBuilderTest {
             ProfileItem.create(EConfigType.POLICYGROUP).apply { remarks = "shared" },
         )
         val find = { name: String, takes: (ProfileItem) -> Boolean -> ByName.find(name, shared.asSequence().filter(takes)) { it.remarks } }
-        assertEquals(GROUP_AS_HOP, CoreConfigContextBuilder.reasonByType("shared", CoreConfigContextBuilder.HOP_REASONS, find))
-        assertNull(CoreConfigContextBuilder.reasonByType("gone", CoreConfigContextBuilder.HOP_REASONS, find))
+        assertEquals(GROUP_AS_HOP, CoreConfigContextBuilder.reasonByType("shared", CoreConfigContextBuilder.HOP_REASONS, find) { it })
+        assertNull(CoreConfigContextBuilder.reasonByType("gone", CoreConfigContextBuilder.HOP_REASONS, find) { it })
     }
 
     @Test

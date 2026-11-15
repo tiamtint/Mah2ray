@@ -45,6 +45,7 @@
     <string name="menu_item_import_config_manually_trojan">[Trojan] əlavə et</string>
     <string name="menu_item_import_config_manually_wireguard">[WireGuard] əlavə et</string>
     <string name="menu_item_import_config_manually_hysteria2">[Hysteria2] əlavə et</string>
+    <string name="menu_item_import_config_manually_masque">[MASQUE] əlavə et</string>
     <string name="confirm_delete_visible_profiles">Hazırda göstərilən bütün profilləri silmək istədiyinizə əminsiniz?</string>
     <string name="confirm_delete_duplicate_profiles">Hazırda göstərilən bütün təkrar profilləri silmək istədiyinizə əminsiniz?</string>
     <string name="confirm_delete_invalid_profiles">Zəhmət olmasa əvvəlcə profilləri sınaqdan keçirin. Hazırda göstərilən bütün yararsız profilləri silmək istədiyinizə əminsiniz?</string>
@@ -73,6 +74,7 @@
     <string name="server_lab_request_host_h2">h2 host</string>
     <string name="server_lab_request_host_quic">QUIC təhlükəsizliyi</string>
     <string name="server_lab_request_host_grpc">gRPC Authority</string>
+    <string name="server_lab_request_host_masque">MASQUE host</string>
     <string name="server_lab_path">yol</string>
     <string name="server_lab_path_ws">ws yolu</string>
     <string name="server_lab_path_httpupgrade">httpupgrade yolu</string>
@@ -81,11 +83,15 @@
     <string name="server_lab_path_quic">QUIC açarı</string>
     <string name="server_lab_path_kcp">kcp seed</string>
     <string name="server_lab_path_grpc">gRPC serviceName</string>
+    <string name="server_lab_path_masque">MASQUE yolu</string>
     <string name="server_lab_stream_security" translatable="false">TLS</string>
     <string name="server_lab_stream_fingerprint">Barmaq izi</string>
     <string name="server_lab_stream_alpn" translatable="false">ALPN</string>
     <string name="server_lab_cipher_suites">Şifrləmə dəstləri (Cipher Suites)</string>
+    <string name="server_lab_curve_preferences">Əyri üstünlükləri (Curve Preferences)</string>
+    <string name="server_lab_enable_session_resumption">Sessiyanın bərpası (Enable Session Resumption)</string>
     <string name="toast_cipher_suites_need_unsafe">cipherSuites yalnız unsafe barmaq izi ilə tətbiq olunur. unsafe seçin və ya cipherSuites-i təmizləyin.</string>
+    <string name="toast_curve_preferences_need_unsafe">curvePreferences yalnız unsafe barmaq izi ilə tətbiq olunur. unsafe seçin və ya curvePreferences-i təmizləyin.</string>
     <string name="toast_websocket_alpn_http1_only">WebSocket və HTTPUpgrade yalnız alpn http/1.1 ilə və ya alpn olmadan qoşulur. http/1.1 seçin və ya alpn-i boş saxlayın.</string>
     <string name="server_lab_allow_insecure">allowInsecure</string>
     <string name="server_lab_sni" translatable="false">SNI</string>
@@ -105,6 +111,10 @@
     <string name="server_lab_secret_key">SecretKey</string>
     <string name="server_lab_reserved">Reserved (istəyə bağlı, vergüllə ayrılmış)</string>
     <string name="server_lab_local_address">Yerli ünvan (istəyə bağlı IPv4/IPv6, vergüllə ayrılmış)</string>
+    <string name="server_lab_local_address_hint">Boşdursa, standart olaraq %1$s istifadə olunur. IPv6 ünvanları yalnız IPv6 aktiv olduqda istifadə edilir.</string>
+    <string name="server_lab_masque_warp_settings">WARP</string>
+    <string name="server_lab_masque_warp_private_key">WARP PrivateKey</string>
+    <string name="server_lab_masque_warp_public_key">WARP PublicKey</string>
     <string name="server_lab_local_mtu">MTU (istəyə bağlı, standart 1420)</string>
     <string name="server_lab_remote_dns">remoteDNS (istəyə bağlı, vergüllə ayrılmış IPv4/IPv6)</string>
     <string name="server_lab_remote_dns_hint">Boşdursa, standart olaraq %1$s istifadə olunur. IPv6 ünvanları yalnız IPv6 aktiv olduqda istifadə edilir.</string>
@@ -128,6 +138,9 @@
     <string name="server_lab_request_host6">Host (SNI) (istəyə bağlı)</string>
     <string name="toast_action_not_allowed">Fəaliyyətə icazə verilmir</string>
     <string name="server_obfs_password">Obfs şifrəsi</string>
+    <string name="server_obfs_type">Obfs növü</string>
+    <string name="server_lab_min_packet_size">Paketin minimum ölçüsü (istəyə bağlı, standart 512)</string>
+    <string name="server_lab_max_packet_size">Paketin maksimum ölçüsü (istəyə bağlı, standart 1200)</string>
     <string name="server_lab_port_hop">Port dəyişməsi (portu əvəzləyir)</string>
     <string name="server_lab_port_hop_interval">Port dəyişmə tezliyi (saniyə)</string>
     <string name="server_lab_bandwidth_down">Yükləmə zolaq genişliyi (dəstəklənən vahidlər: k/m/g/t)</string>
@@ -141,6 +154,9 @@
     <string name="preset_default">standart</string>
     <string name="acc_choose_preset">Hazır %1$s seçin</string>
     <string name="server_lab_dial_mode" translatable="false">dialMode</string>
+    <string name="server_lab_tcp_user_timeout" translatable="false">tcpUserTimeout</string>
+    <string name="server_hint_tcp_user_timeout">Millisaniyə (məsələn, 10000). Boş = sistemin standartı.</string>
+    <string name="aether_lab_exit_tcp_user_timeout" translatable="false">exit-node tcpUserTimeout</string>
     <string name="server_lab_ech_config_list" translatable="false">echConfigList</string>
     <string name="server_lab_ech_outbound">echOutbound xam JSON, format: { OutboundObject }</string>
     <string name="toast_ech_outbound_needs_ech_config_list">echOutbound üçün echConfigList tələb olunur</string>
@@ -307,6 +323,7 @@
     <string name="title_oss_license">Açıq mənbə lisenziyaları</string>
     <string name="title_translators">Tərcüməçilər</string>
     <string name="title_tg_channel">Telegram kanalı</string>
+    <string name="title_donate">İanə et</string>
 
     <string name="title_pref_promotion">Təşviqat</string>
 
@@ -540,6 +557,7 @@
     <string name="acc_download_file">Resurs fayllarını endir</string>
     <string name="acc_qr_code">QR kod</string>
     <string name="acc_copy_log">Jurnalı kopyala</string>
+    <string name="acc_copy_address">%1$s ünvanını kopyala</string>
     <string name="acc_clear_log">Jurnalı təmizlə</string>
     <string name="acc_add_rule">Marşrutlaşdırma qaydası əlavə et</string>
     <string name="acc_start">Xidməti başlat</string>
@@ -583,7 +601,7 @@
     <string name="aether_lab_exit_final_mask">exit-node finalMask xam JSON, format: { FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom (standart)</string>
     <string name="label_numbered">%1$s (%2$d)</string>
-    <string name="aether_hint_exit_node">Nüvə bu profilin çıxışı vasitəsilə, proksi zəncirinin bir halqası kimi xaricə qoşulur; aşağıdakı finalMask və dialMode yalnız freedom üçündür</string>
+    <string name="aether_hint_exit_node">Nüvə bu profilin çıxışı vasitəsilə, proksi zəncirinin bir halqası kimi xaricə qoşulur; aşağıdakı finalMask, dialMode və tcpUserTimeout yalnız freedom üçündür</string>
     <string name="aether_exit_node_unusable">\"%1$s\" exit-node profili heç bir çıxış vermir; başqasını və ya freedom seçin</string>
     <string name="aether_exit_node_ech_unusable">\"%1$s\" exit-node profilinin echOutbound-u istifadə edilə bilmir; onu həmin profildə düzəldin, başqasını və ya freedom seçin</string>
     <string name="toast_profile_name_not_found">\"%1$s\" adlı profil tapılmadı</string>

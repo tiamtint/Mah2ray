@@ -8,13 +8,18 @@ import com.v2ray.ang.AppConfig.AETHER_ECH_DNS
 import com.v2ray.ang.AppConfig.AETHER_ECH_DOMAIN
 import com.v2ray.ang.AppConfig.AETHER_MASQUE_SNI
 import com.v2ray.ang.AppConfig.DEFAULT_PORT
+import com.v2ray.ang.AppConfig.MASQUE_LOCAL_ADDRESS_V4
+import com.v2ray.ang.AppConfig.MASQUE_LOCAL_ADDRESS_V6
+import com.v2ray.ang.AppConfig.MASQUE_LOCAL_REMOTE_DNS
 import com.v2ray.ang.AppConfig.REALITY
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
+import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V6
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_REMOTE_DNS
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.core.AetherCoreManager
 import com.v2ray.ang.core.CoreOutboundBuilder
+import com.v2ray.ang.core.TcpUserTimeoutRule
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -47,10 +52,13 @@ class ServerUiState(
     publicKey: String = "",
     preSharedKey: String = "",
     reserved: String = "0,0,0",
-    localAddress: String = WIREGUARD_LOCAL_ADDRESS_V4,
+    localAddress: String = if (configType == EConfigType.MASQUE) "$MASQUE_LOCAL_ADDRESS_V4,$MASQUE_LOCAL_ADDRESS_V6" else "$WIREGUARD_LOCAL_ADDRESS_V4,$WIREGUARD_LOCAL_ADDRESS_V6",
     mtu: String = WIREGUARD_LOCAL_MTU,
-    remoteDNS: String = WIREGUARD_LOCAL_REMOTE_DNS,
+    obfs: String = "",
+    remoteDNS: String = if (configType == EConfigType.MASQUE) MASQUE_LOCAL_REMOTE_DNS else WIREGUARD_LOCAL_REMOTE_DNS,
     obfsPassword: String = "",
+    minPacketSize: String = "",
+    maxPacketSize: String = "",
     portHopping: String = "",
     portHoppingInterval: String = "",
     bandwidthDown: String = "",
@@ -63,6 +71,7 @@ class ServerUiState(
     authority: String = "",
     host: String = "",
     path: String = "",
+    headers: String = "",
     xhttpExtra: String = "",
     finalMask: String = "",
     seed: String = "",
@@ -70,6 +79,7 @@ class ServerUiState(
     kcpTti: String = "",
     browserDialerMode: String = "",
     dialMode: String = "",
+    tcpUserTimeout: String = "",
     targetStrategy: String = "",
     streamSecurity: String = "",
     sni: String = "",
@@ -77,6 +87,8 @@ class ServerUiState(
     fingerPrint: String = "",
     alpn: String = "",
     cipherSuites: String = "",
+    curvePreferences: String = "",
+    enableSessionResumption: Boolean = false,
     publicKeyReality: String = "",
     shortId: String = "",
     spiderX: String = "",
@@ -133,7 +145,10 @@ class ServerUiState(
     var localAddress by mutableStateOf(localAddress)
     var mtu by mutableStateOf(mtu)
     var remoteDNS by mutableStateOf(remoteDNS)
+    var obfs by mutableStateOf(obfs)
     var obfsPassword by mutableStateOf(obfsPassword)
+    var minPacketSize by mutableStateOf(minPacketSize)
+    var maxPacketSize by mutableStateOf(maxPacketSize)
     var portHopping by mutableStateOf(portHopping)
     var portHoppingInterval by mutableStateOf(portHoppingInterval)
     var bandwidthDown by mutableStateOf(bandwidthDown)
@@ -146,6 +161,7 @@ class ServerUiState(
     var authority by mutableStateOf(authority)
     var host by mutableStateOf(host)
     var path by mutableStateOf(path)
+    var headers by mutableStateOf(headers)
     var xhttpExtra by mutableStateOf(xhttpExtra)
     var finalMask by mutableStateOf(finalMask)
     var seed by mutableStateOf(seed)
@@ -153,6 +169,11 @@ class ServerUiState(
     var kcpTti by mutableStateOf(kcpTti)
     var browserDialerMode by mutableStateOf(browserDialerMode)
     var dialMode by mutableStateOf(dialMode)
+    /**
+     * PattNG: the tcpUserTimeout as typed, in milliseconds; blank for none. It counts only where the outbound connects
+     * over TCP, see [tcpUserTimeoutApplies], and an Aether profile's where its core does, see [aetherConnectsOverTcp].
+     */
+    var tcpUserTimeout by mutableStateOf(tcpUserTimeout)
     /** The targetStrategy chosen; blank while the profile follows its default, see [shownTargetStrategy]. */
     var targetStrategy by mutableStateOf(targetStrategy)
     var streamSecurity by mutableStateOf(streamSecurity)
@@ -161,6 +182,8 @@ class ServerUiState(
     var fingerPrint by mutableStateOf(fingerPrint)
     var alpn by mutableStateOf(alpn)
     var cipherSuites by mutableStateOf(cipherSuites)
+    var curvePreferences by mutableStateOf(curvePreferences)
+    var enableSessionResumption by mutableStateOf(enableSessionResumption)
     var publicKeyReality by mutableStateOf(publicKeyReality)
     var shortId by mutableStateOf(shortId)
     var spiderX by mutableStateOf(spiderX)
@@ -220,7 +243,31 @@ class ServerUiState(
     val hasOtherAetherSettings: Boolean
         get() = aetherDns.isNotBlank() ||
             aetherExitLoc.isNotBlank() ||
+            TcpUserTimeoutRule.parse(tcpUserTimeout) != null ||
             (targetStrategy.isNotBlank() && targetStrategy != defaultTargetStrategy)
+
+    /**
+     * PattNG: whether the outbound of the profile, as the screen sets it up now, connects over TCP, see
+     * [TcpUserTimeoutRule.applies]: only then does its tcpUserTimeout count, and the screen shows it.
+     */
+    val tcpUserTimeoutApplies: Boolean
+        get() = TcpUserTimeoutRule.applies(configType, network, streamSecurity, alpn)
+
+    /**
+     * PattNG: whether the core of the Aether profile, as the screen sets it up now, connects out over TCP, in its
+     * settings or in the command it carries in their place, see [AetherCore.connectsOverTcp]: only then does the
+     * tcpUserTimeout of its exit-node count, and the screen shows it.
+     */
+    val aetherConnectsOverTcp: Boolean
+        get() = AetherCore.connectsOverTcp(
+            ProfileItem.create(configType).also {
+                it.aetherProtocol = aetherProtocol
+                it.aetherTransport = aetherTransport
+                it.aetherTor = aetherTor
+                it.aetherPsiphon = aetherPsiphon
+                it.aetherCommand = aetherCommand.nullIfBlank()
+            }
+        )
 
     /**
      * PattNG: the targetStrategy of the profile as the screen sets it up now, while it stores none: an Aether
@@ -240,6 +287,31 @@ class ServerUiState(
     val shownTargetStrategy: String
         get() = targetStrategy.ifBlank { defaultTargetStrategy }
 
+    /**
+     * PattNG: the Hysteria2 obfs the screen shows, by the rule the outbound and the link go by
+     * (ProfileItem.isGeckoObfs): packet sizes make it gecko, whatever obfs names.
+     */
+    val shownHysteria2Obfs: String
+        get() = when {
+            obfs.equals("none", ignoreCase = true) -> "none"
+            obfs.equals("gecko", ignoreCase = true) || minPacketSize.isNotBlank() || maxPacketSize.isNotBlank() -> "gecko"
+            obfs.equals("salamander", ignoreCase = true) || obfsPassword.isNotBlank() -> "salamander"
+            else -> "none"
+        }
+
+    /**
+     * PattNG: picks the Hysteria2 obfs. Any pick but gecko drops gecko's packet sizes, which would keep the profile
+     * gecko (see [shownHysteria2Obfs]); none drops the password too.
+     */
+    fun chooseHysteria2Obfs(type: String) {
+        obfs = if (type == "none") "" else type
+        if (type != "gecko") {
+            minPacketSize = ""
+            maxPacketSize = ""
+        }
+        if (type == "none") obfsPassword = ""
+    }
+
     var isRemarksError by mutableStateOf(false)
     var isAddressError by mutableStateOf(false)
     var isPortError by mutableStateOf(false)
@@ -257,6 +329,7 @@ class ServerUiState(
         val isShadowsocks = configType == EConfigType.SHADOWSOCKS
         val isSocksOrHttp = configType == EConfigType.SOCKS || configType == EConfigType.HTTP
         val isWireguard = configType == EConfigType.WIREGUARD
+        val isMasque = configType == EConfigType.MASQUE
         val isHysteria2 = configType == EConfigType.HYSTERIA2
         val isAether = configType == EConfigType.AETHER
         val isPsiphon = isAether && aetherPsiphon != AetherPsiphon.OFF.type
@@ -275,18 +348,21 @@ class ServerUiState(
             },
             flow = if (isVless) flow else null,
             username = if (isSocksOrHttp) username else null,
-            secretKey = if (isWireguard) secretKey else null,
+            secretKey = if (isWireguard || isMasque) secretKey else null,
             publicKey = when {
-                isWireguard -> publicKey
+                isWireguard || isMasque -> publicKey
                 streamSecurity == REALITY -> publicKeyReality
                 else -> null
             },
             preSharedKey = if (isWireguard) preSharedKey else null,
             reserved = if (isWireguard) reserved else null,
-            localAddress = if (isWireguard) localAddress else null,
+            localAddress = if (isWireguard || isMasque) localAddress else null,
             mtu = if (isWireguard) mtu.toIntOrNull() else null,
-            remoteDNS = if (isWireguard) remoteDNS else null,
+            remoteDNS = if (isWireguard || isMasque) remoteDNS else null,
+            obfs = if (isHysteria2) obfs.nullIfBlank() else null,
             obfsPassword = if (isHysteria2) obfsPassword else null,
+            minPacketSize = if (isHysteria2) minPacketSize.nullIfBlank() else null,
+            maxPacketSize = if (isHysteria2) maxPacketSize.nullIfBlank() else null,
             portHopping = if (isHysteria2) portHopping else null,
             portHoppingInterval = if (isHysteria2) portHoppingInterval else null,
             bandwidthDown = if (isHysteria2) bandwidthDown else null,
@@ -299,6 +375,7 @@ class ServerUiState(
             authority = authority.nullIfBlank(),
             host = host,
             path = path,
+            headers = if (isMasque) headers.nullIfBlank() else null,
             xhttpExtra = xhttpExtra.nullIfBlank(),
             finalMask = finalMask.nullIfBlank(),
             seed = seed.nullIfBlank(),
@@ -310,6 +387,8 @@ class ServerUiState(
                 null
             },
             dialMode = dialMode.nullIfBlank(),
+            // Kept where it does not count, as the dialMode is; the outbound and the link leave it out there.
+            tcpUserTimeout = TcpUserTimeoutRule.parse(tcpUserTimeout),
             // Set below, against the default of the profile as built here.
             targetStrategy = null,
             security = streamSecurity,
@@ -318,6 +397,8 @@ class ServerUiState(
             fingerPrint = fingerPrint,
             alpn = alpn,
             cipherSuites = cipherSuites,
+            curvePreferences = curvePreferences,
+            enableSessionResumption = enableSessionResumption,
             shortId = shortId,
             spiderX = spiderX,
             mldsa65Verify = mldsa65Verify,
@@ -391,10 +472,13 @@ class ServerUiState(
                 publicKey = initialConfig.publicKey ?: "",
                 preSharedKey = initialConfig.preSharedKey ?: "",
                 reserved = initialConfig.reserved ?: "0,0,0",
-                localAddress = initialConfig.localAddress ?: WIREGUARD_LOCAL_ADDRESS_V4,
+                localAddress = initialConfig.localAddress ?: "",
                 mtu = initialConfig.mtu?.toString() ?: WIREGUARD_LOCAL_MTU,
-                remoteDNS = initialConfig.remoteDNS ?: WIREGUARD_LOCAL_REMOTE_DNS,
+                remoteDNS = initialConfig.remoteDNS ?: "",
+                obfs = initialConfig.obfs ?: "",
                 obfsPassword = initialConfig.obfsPassword ?: "",
+                minPacketSize = initialConfig.minPacketSize ?: "",
+                maxPacketSize = initialConfig.maxPacketSize ?: "",
                 portHopping = initialConfig.portHopping ?: "",
                 portHoppingInterval = initialConfig.portHoppingInterval ?: "",
                 bandwidthDown = initialConfig.bandwidthDown ?: "",
@@ -407,6 +491,7 @@ class ServerUiState(
                 authority = initialConfig.authority ?: "",
                 host = initialConfig.host ?: "",
                 path = initialConfig.path ?: "",
+                headers = initialConfig.headers ?: "",
                 xhttpExtra = initialConfig.xhttpExtra ?: "",
                 finalMask = initialConfig.finalMask ?: "",
                 seed = initialConfig.seed ?: "",
@@ -414,6 +499,7 @@ class ServerUiState(
                 kcpTti = initialConfig.kcpTti?.toString() ?: "",
                 browserDialerMode = initialConfig.browserDialerMode ?: "",
                 dialMode = initialConfig.dialMode ?: "",
+                tcpUserTimeout = initialConfig.tcpUserTimeout?.takeIf { it > 0 }?.toString() ?: "",
                 targetStrategy = initialConfig.targetStrategy.orEmpty(),
                 streamSecurity = initialConfig.security ?: "",
                 sni = initialConfig.sni ?: "",
@@ -421,6 +507,8 @@ class ServerUiState(
                 fingerPrint = initialConfig.fingerPrint ?: "",
                 alpn = initialConfig.alpn ?: "",
                 cipherSuites = initialConfig.cipherSuites ?: "",
+                curvePreferences = initialConfig.curvePreferences ?: "",
+                enableSessionResumption = initialConfig.enableSessionResumption == true,
                 publicKeyReality = initialConfig.publicKey ?: "",
                 shortId = initialConfig.shortId ?: "",
                 spiderX = initialConfig.spiderX ?: "",

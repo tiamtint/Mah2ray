@@ -116,7 +116,9 @@ data class V2rayConfig(
 
         data class StreamSettingsBean(
             var network: String? = AppConfig.DEFAULT_NETWORK,
+            var method: String? = null,
             var security: String? = null,
+            var rawSettings: TcpSettingsBean? = null,
             var tcpSettings: TcpSettingsBean? = null,
             var kcpSettings: KcpSettingsBean? = null,
             var wsSettings: WsSettingsBean? = null,
@@ -128,6 +130,8 @@ data class V2rayConfig(
             var realitySettings: TlsSettingsBean? = null,
             var grpcSettings: GrpcSettingsBean? = null,
             var hysteriaSettings: HysteriaSettingsBean? = null,
+            var masqueSettings: MasqueSettingsBean? = null,
+            var xdriveSettings: XdriveSettingsBean? = null,
             var finalmask: Any? = null,
             val dsSettings: Any? = null,
             var sockopt: SockoptBean? = null
@@ -206,8 +210,11 @@ data class V2rayConfig(
                 var mark: Int? = null,
                 var dialerProxy: String? = null,
                 var domainStrategy: String? = null,
+                var addressPortStrategy: String? = null,
                 var happyEyeballs: HappyEyeballsBean? = null,
                 var dialMode: String? = null,
+                // PattNG: milliseconds, after dialMode (TcpUserTimeoutRule)
+                var tcpUserTimeout: Int? = null,
             )
 
             data class HappyEyeballsBean(
@@ -225,10 +232,12 @@ data class V2rayConfig(
                 val maxVersion: String? = null,
                 val preferServerCipherSuites: Boolean? = null,
                 val cipherSuites: String? = null,
+                // PattNG: curvePreferences and enableSessionResumption follow cipherSuites, as in the editor and the links
+                val curvePreferences: List<String>? = null,
+                val enableSessionResumption: Boolean? = null,
                 val fingerprint: String? = null,
                 val certificates: List<Any>? = null,
                 val disableSystemRoot: Boolean? = null,
-                val enableSessionResumption: Boolean? = null,
                 var echConfigList: String? = null,
                 var echSockopt: SockoptBean? = null,
                 // PattNG: the profile's ECH outbound as written, which EchOutbound.serialize checks, links and
@@ -236,6 +245,8 @@ data class V2rayConfig(
                 @Transient var echOutbound: String? = null,
                 var verifyPeerCertByName: String? = null,
                 var pinnedPeerCertSha256: String? = null,
+                val rejectUnknownSni: Boolean? = null,
+                val useSystemCA: Boolean? = null,
                 // REALITY settings
                 var publicKey: String? = null,
                 var shortId: String? = null,
@@ -264,6 +275,43 @@ data class V2rayConfig(
                 var auth: String? = null
             )
 
+            data class MasqueSettingsBean(
+                var host: String? = null,
+                var path: String? = null,
+                var user: String? = null,
+                var pass: String? = null,
+                var headers: Map<String, String>? = null,
+                var warp: WarpBean? = null
+            ) {
+                data class WarpBean(
+                    var privateKey: String,
+                    var publicKey: String,
+                    var address: List<String>
+                )
+            }
+
+            data class XdriveSettingsBean(
+                var service: String,
+                var remoteFolder: String,
+                var secrets: List<String>,
+                var concurrency: Int? = null,
+                var flushIntervalMs: Int? = null,
+                var maxPollIntervalMs: Int? = null,
+                var eagerWindowMs: Int? = null,
+                var segmentBytes: Int? = null,
+                var pollIntervalMs: Int? = null,
+                var xmux: XmuxSettingsBean? = null
+            ) {
+                data class XmuxSettingsBean(
+                    var maxConnections: Any? = null,
+                    var maxConcurrency: Any? = null,
+                    var cMaxReuseTimes: Any? = null,
+                    var hMaxRequestTimes: Any? = null,
+                    var hMaxReusableSecs: Any? = null,
+                    var hKeepAlivePeriod: Any? = null
+                )
+            }
+
             //https://xtls.github.io/config/transport.html#finalmaskobject
             data class FinalMaskBean(
                 var tcp: List<MaskBean>? = null,
@@ -278,6 +326,10 @@ data class V2rayConfig(
                         val password: String? = null,
                         val header: String? = null,
                         val value: String? = null,
+                        // udphot
+                        val mode: String? = null,
+                        val interval: String? = null,
+                        val remotePorts: String? = null,
                         // fragment
                         val packets: String? = null,
                         val length: String? = null,
@@ -285,7 +337,8 @@ data class V2rayConfig(
                         val maxSplit: String? = null,
                         // noise
                         val reset: Int? = null,
-                        val noise: List<NoiseMaskBean>? = null
+                        val noise: List<NoiseMaskBean>? = null,
+                        val packetSize: String? = null
                     ) {
                         data class NoiseMaskBean(
                             val rand: String? = null,
@@ -301,14 +354,7 @@ data class V2rayConfig(
                     var congestion: String? = null,
                     var brutalUp: String? = null,
                     var brutalDown: String? = null,
-                    var udpHop: UdpHopBean? = null,
-                ) {
-                    // Nested data class for the udpHop JSON object
-                    data class UdpHopBean(
-                        var ports: String? = null,
-                        var interval: String? = null
-                    )
-                }
+                )
             }
         }
 

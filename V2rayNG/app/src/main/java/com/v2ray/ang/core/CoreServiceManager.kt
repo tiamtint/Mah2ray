@@ -680,18 +680,39 @@ object CoreServiceManager {
             }
 
             ensureActive()
-            val endpoint = if (time >= 0) SpeedtestManager.getRemoteIPInfo() else null
-            val result = ConnectionTestResult(
+            val initialResult = ConnectionTestResult(
                 delayMillis = time,
                 errorMessage = errorStr,
-                country = endpoint?.country,
-                ipAddress = endpoint?.ipAddress,
+                country = null,
+                ipAddress = null,
             )
-            withContext(Dispatchers.Main.immediate) {
+            // PattNG: a core that stopped meanwhile gets no IP lookup either; return@withContext alone went on to it.
+            val delivered = withContext(Dispatchers.Main.immediate) {
                 if (isRunning()) {
-                    MessageHelper.sendMsg2UI(service, AppConfig.MSG_MEASURE_DELAY_RESULT, result, requestId)
+                    MessageHelper.sendMsg2UI(service, AppConfig.MSG_MEASURE_DELAY_RESULT, initialResult, requestId)
+                    true
                 } else {
                     MessageHelper.sendMsg2UI(service, AppConfig.MSG_MEASURE_DELAY_CANCEL, "", requestId)
+                    false
+                }
+            }
+            if (!delivered) return@launch
+
+            if (time >= 0) {
+                val endpoint = SpeedtestManager.getRemoteIPInfo()
+                if (endpoint != null && (endpoint.country != null || endpoint.ipAddress != null)) {
+                    ensureActive()
+                    val fullResult = ConnectionTestResult(
+                        delayMillis = time,
+                        errorMessage = errorStr,
+                        country = endpoint.country,
+                        ipAddress = endpoint.ipAddress,
+                    )
+                    withContext(Dispatchers.Main.immediate) {
+                        if (isRunning()) {
+                            MessageHelper.sendMsg2UI(service, AppConfig.MSG_MEASURE_DELAY_RESULT, fullResult, requestId)
+                        }
+                    }
                 }
             }
         }.invokeOnCompletion { cause ->
