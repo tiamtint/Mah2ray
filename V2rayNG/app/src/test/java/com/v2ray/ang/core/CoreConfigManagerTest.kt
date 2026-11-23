@@ -1,6 +1,7 @@
 package com.v2ray.ang.core
 
 import android.content.Context
+import com.tencent.mmkv.MMKV
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.CoreConfigContext
 import com.v2ray.ang.dto.V2rayConfig
@@ -9,13 +10,20 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.mockito.MockMakers
+import org.mockito.Mockito
+import org.mockito.Mockito.mockStatic
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 class CoreConfigManagerTest {
 
@@ -381,7 +389,7 @@ class CoreConfigManagerTest {
     }
 
     @Test
-    fun aChinaModeDomainGoesThroughEveryDomesticServerAndNeverReachesTheRemoteOne() {
+    fun aChinaModeDomainTriesTheDomesticServersForAChineseIpThenTheRemoteOne() {
         val configContext = CoreConfigContext(
             context = mock<Context>(),
             guid = "guid",
@@ -390,20 +398,87 @@ class CoreConfigManagerTest {
                 CoreConfigContext.RoutingDomainRule(listOf(AppConfig.GEOSITE_CN), AppConfig.TAG_DIRECT),
             ),
         )
+        val remoteDns = listOf("https://8.8.8.8/dns-query")
         val domesticDns = listOf("223.5.5.5", "119.29.29.29")
         val servers = ArrayList<Any>()
-        CoreConfigManager.buildDnsCnModeFromRoutingRules(configContext, servers, domesticDns)
-        CoreConfigManager.buildDnsFromRoutingRules(configContext, servers, listOf("https://8.8.8.8/dns-query"), domesticDns)
+        CoreConfigManager.buildDnsCnModeFromRoutingRules(configContext, servers, remoteDns, domesticDns)
+        CoreConfigManager.buildDnsFromRoutingRules(configContext, servers, remoteDns, domesticDns)
 
         // The servers the core asks for a geosite:cn domain: those whose domains match, in order, up to the first
         // with finalQuery.
         val matching = servers.filterIsInstance<V2rayConfig.DnsBean.ServersBean>()
             .filter { AppConfig.GEOSITE_CN in it.domains.orEmpty() }
         val last = matching.indexOfFirst { it.finalQuery == true }
-        assertTrue(last >= 0, "a geosite:cn domain must stop at a domestic server, before the remote one")
+        assertTrue(last >= 0, "a geosite:cn domain must stop at the last domestic server")
         val asked = matching.take(last + 1)
-        // A Chinese IP from each domestic server first, then any answer from them, and never the remote server.
-        assertEquals(domesticDns + domesticDns, asked.map { it.address })
-        assertEquals(listOf(listOf(AppConfig.GEOIP_CN), listOf(AppConfig.GEOIP_CN), null, null), asked.map { it.expectIPs })
+        // A Chinese IP from each domestic server first, then any answer from the remote server (upstream PR 6483), then
+        // any answer from the domestic servers.
+        assertEquals(domesticDns + remoteDns + domesticDns, asked.map { it.address })
+        assertEquals(listOf(listOf(AppConfig.GEOIP_CN), listOf(AppConfig.GEOIP_CN), null, null, null), asked.map { it.expectIPs })
+        // The domestic servers query as domestic-dns, which goes direct; the remote one as the DNS module, through the
+        // proxy.
+        val domestic = AppConfig.TAG_DOMESTIC_DNS
+        assertEquals(listOf(domestic, domestic, null, domestic, domestic), asked.map { it.tag })
+    }
+
+    @Test
+    fun fakeDnsListsExactlyTheDomainsTheOtherDnsServersList() {
+        fun context(vararg rules: CoreConfigContext.RoutingDomainRule) =
+            CoreConfigContext(context = mock<Context>(), guid = "guid", routingDomainRules = rules.toList())
+        // The domain rules of the Iran preset, where geosite:cn has no rule, and of the China preset, where it has one.
+        val iran = context(
+            CoreConfigContext.RoutingDomainRule(listOf("geosite:category-ads-all"), AppConfig.TAG_BLOCKED),
+            CoreConfigContext.RoutingDomainRule(listOf("geosite:private"), AppConfig.TAG_DIRECT),
+            CoreConfigContext.RoutingDomainRule(listOf("domain:ir", "geosite:category-ir"), AppConfig.TAG_DIRECT),
+        )
+        val china = context(
+            CoreConfigContext.RoutingDomainRule(listOf("geosite:google"), AppConfig.TAG_PROXY),
+            CoreConfigContext.RoutingDomainRule(listOf("geosite:private"), AppConfig.TAG_DIRECT),
+            CoreConfigContext.RoutingDomainRule(listOf(AppConfig.GEOSITE_CN), AppConfig.TAG_DIRECT),
+        )
+        for (configContext in listOf(iran, china)) {
+            val v2rayConfig = V2rayConfig(
+                log = V2rayConfig.LogBean(),
+                inbounds = arrayListOf(),
+                outbounds = arrayListOf(),
+                routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+            )
+            // Every DNS server, however configureDns adds it, with the DNS settings of an empty store.
+            CoreConfigManager.configureDns(configContext, v2rayConfig, emptyMap())
+            val listed = v2rayConfig.dns?.servers.orEmpty().filterIsInstance<V2rayConfig.DnsBean.ServersBean>()
+                .flatMap { it.domains.orEmpty() }.toSet()
+            val fakeDns = CoreConfigManager.fakeDnsDomains(configContext).toSet()
+            // With disableFallbackIfMatch the core asks only the servers whose domains match, and it skips fakedns when it
+            // looks a name up itself: a domain that fakedns alone lists would find no server.
+            assertEquals(emptySet<String>(), fakeDns - listed, "fakedns lists these, and no other DNS server does")
+            // fakedns, the first server, answers an app first only for the domains it lists: a domain that another server
+            // lists and fakedns does not would give the app a real address.
+            assertEquals(emptySet<String>(), listed - fakeDns, "a DNS server lists these, and fakedns does not")
+        }
+        // A blocked domain is left to the hosts, and geosite:cn without a rule to the remote servers.
+        assertEquals(listOf("geosite:private", "domain:ir", "geosite:category-ir"), CoreConfigManager.fakeDnsDomains(iran))
+        assertEquals(listOf("geosite:google", "geosite:private", AppConfig.GEOSITE_CN), CoreConfigManager.fakeDnsDomains(china))
+    }
+
+    companion object {
+        /**
+         * The settings storage as a subclass-mocked handle, as CoreOutboundBuilderTest makes one: MMKV's decode methods
+         * are native, which the default inline mock maker cannot stand in for, and MMKV.initialize never runs in unit
+         * tests. configureDns reads its DNS settings as strings, which this handle, and those of the other tests that
+         * bind the storage first, answer with null, so that their defaults apply.
+         */
+        private val settings: MMKV = Mockito.mock(MMKV::class.java, Mockito.withSettings().mockMaker(MockMakers.SUBCLASS))
+
+        @BeforeAll
+        @JvmStatic
+        fun initializeSettingsStorage() {
+            // The storages of MmkvManager are lazy: the static mock must stand when the settings one is first read.
+            mockStatic(MMKV::class.java).use {
+                it.`when`<MMKV> { MMKV.mmkvWithID("SETTING", MMKV.MULTI_PROCESS_MODE) }.thenReturn(settings)
+                MmkvManager.decodeSettingsBool("test-initialize", false)
+            }
+            whenever(settings.decodeBool(any(), any())).thenAnswer { it.getArgument<Boolean>(1) }
+            whenever(settings.decodeString(any(), any<String>())).thenAnswer { it.getArgument<String?>(1) }
+        }
     }
 }
