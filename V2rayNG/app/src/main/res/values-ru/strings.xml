@@ -267,6 +267,14 @@
     <string name="title_pref_domestic_dns">DNS для прямых подключений (необязательно)</string>
     <string name="summary_pref_domestic_dns" translatable="false">DNS</string>
 
+    <string name="title_pref_dns_validate_region">Validate Region</string>
+    <string name="summary_pref_dns_validate_region">Check the region of local DNS results and fall back to remote DNS on mismatch.</string>
+
+    <string name="title_dns_parallel_query">DNS Parallel Query</string>
+    <string name="summary_dns_parallel_query">Query multiple DNS servers in parallel and use the fastest response.</string>
+    <string name="title_dns_serve_stale">DNS Serve Stale</string>
+    <string name="summary_dns_serve_stale">When enabled, reduces DNS lookup waits; expired results are still used while the latest result is fetched.</string>
+
     <string name="title_pref_dns_hosts">Сопоставления DNS (формат: domain:address,…)</string>
     <string name="summary_pref_dns_hosts">домен:адрес,…</string>
 
@@ -812,4 +820,9 @@
     <string name="sub_info_open_page">Открыть страницу подписки</string>
     <string name="sub_info_unlimited">Без ограничений</string>
 
+    <string name="action_exit">Выход</string>
+    <string name="action_back">Назад</string>
+    <string name="action_more">Ещё</string>
+    <string name="action_clear">Очистить</string>
+    <string name="connection_connected_tv">Соединено</string>
 </resources>

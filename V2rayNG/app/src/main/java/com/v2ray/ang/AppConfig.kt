@@ -85,7 +85,10 @@ object AppConfig {
     const val PREF_AETHER_KEYS_COMMAND = "pref_aether_keys_command"
     const val PREF_REMOTE_DNS = "pref_remote_dns"
     const val PREF_DOMESTIC_DNS = "pref_domestic_dns"
+    const val PREF_DNS_VALIDATE_REGION = "pref_dns_validate_region"
     const val PREF_DNS_HOSTS = "pref_dns_hosts"
+    const val PREF_DNS_PARALLEL_QUERY = "pref_dns_parallel_query"
+    const val PREF_DNS_SERVE_STALE = "pref_dns_serve_stale"
     const val PREF_DELAY_TEST_URL = "pref_delay_test_url"
     const val PREF_IP_API_URL = "pref_ip_api_url"
     const val PREF_LOGLEVEL = "pref_core_loglevel"
@@ -121,6 +124,9 @@ object AppConfig {
 
     /** Messages for a running SubscriptionUpdateService, which a broadcast delivers without starting it. */
     const val BROADCAST_ACTION_SUBSCRIPTION = "$ANG_PACKAGE.action.subscription"
+
+    /** Intent extras. */
+    const val EXTRA_REFRESH_AFTER_IMPORT = "$ANG_PACKAGE.extra.REFRESH_AFTER_IMPORT"
 
     /** Tasker extras. */
     const val TASKER_EXTRA_BUNDLE = "com.twofortyfouram.locale.intent.extra.BUNDLE"
@@ -308,6 +314,7 @@ object AppConfig {
     const val ROOT_IPTABLES_CHAIN = "CORE_FILTER"
     const val ROOT_FWMARK = 255            // defensive RETURN tag; hev's only upstream socket is loopback (already bypassed)
     const val ROOT_MARK_ROUTE = 1          // packets we want pushed into the tun device
+    const val ROOT_DNS_TETHER_UID = 1052   // AID_DNS_TETHER: netd forwards hotspot clients' DNS under this uid
     const val ROOT_ROUTE_TABLE = 2024
     const val ROOT_RULE_PRIORITY = 1000
     const val ROOT_TUN_NAME = "utun7788"
